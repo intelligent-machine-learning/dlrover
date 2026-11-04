@@ -232,6 +232,19 @@ class PerformanceHistory:
         return median(values) if values else None
 
 
+@dataclass(frozen=True)
+class PerformanceWindow:
+    """Summary of one complete, non-overlapping step window."""
+
+    index: int
+    start_iteration: int
+    end_iteration: int
+    start_timestamp: int
+    end_timestamp: int
+    sample_count: int
+    median_throughput: float
+
+
 @dataclass
 class PerformanceIssue:
     """A performance problem supported by a sustained set of observations."""
@@ -283,19 +296,16 @@ class PerformanceDiagnosticianConfig:
 
     log_tail_lines: int = 5000
     history_size: int = 1024
-    history_retention_seconds: int = 1800
-    baseline_window_size: int = 20
-    minimum_baseline_records: int = 5
+    history_retention_seconds: int = 3600
 
     # p in the performance rule. If an absolute threshold is not configured,
-    # the degradation threshold is healthy_baseline * degradation_ratio.
+    # each reference threshold is reference_throughput * degradation_ratio.
     throughput_threshold: Optional[float] = None
     degradation_ratio: float = 0.7
 
-    # m and n in the performance rule. A tumbling window closes after both
-    # conditions are met: at least m samples and at least n seconds.
-    minimum_window_records: int = 10
-    degradation_window_seconds: int = 60
+    # n in the performance rule: number of steps in each fixed window.
+    window_steps: int = 100
+    history_lookback_seconds: int = 30 * 60
 
     # Fraction of samples in a window that must be below the degradation
     # threshold for the window to be abnormal.
@@ -306,8 +316,8 @@ class PerformanceDiagnosticianConfig:
     consecutive_abnormal_windows: int = 1
 
     # q in the severe rule. The severe threshold is
-    # healthy_baseline * severe_degradation_ratio unless an absolute
-    # threshold is configured. Severe windows reuse m, n, and k.
+    # reference_throughput * severe_degradation_ratio unless an absolute
+    # threshold is configured. Severe windows reuse n and k.
     severe_throughput_threshold: Optional[float] = None
     severe_degradation_ratio: float = 0.20
     severe_fraction_threshold: float = 0.10
@@ -322,37 +332,33 @@ class PerformanceDiagnosticianConfig:
 
     @classmethod
     def from_env(cls) -> "PerformanceDiagnosticianConfig":
-        """Build a config from PERFORMANCE_M/N/K/P/Q.
-
-        N is expressed in minutes. Missing or invalid values use the
-        configuration defaults.
-        """
+        """Build a config from the prefixed performance environment."""
         config = cls()
-        config.minimum_window_records = _get_int_env(
-            EnvConfigKey.PERFORMANCE_M,
-            config.minimum_window_records,
+        config.window_steps = _get_int_env(
+            EnvConfigKey.DLROVER_DIAGNOSIS_PERFORMANCE_N,
+            config.window_steps,
             1,
         )
-        default_minutes = config.degradation_window_seconds / 60.0
-        window_minutes = _get_float_env(
-            EnvConfigKey.PERFORMANCE_N,
-            default_minutes,
+        default_history_minutes = config.history_lookback_seconds / 60.0
+        history_minutes = _get_float_env(
+            EnvConfigKey.DLROVER_DIAGNOSIS_PERFORMANCE_HISTORY_MINUTES,
+            default_history_minutes,
             0.0,
         )
-        config.degradation_window_seconds = int(round(window_minutes * 60))
+        config.history_lookback_seconds = int(round(history_minutes * 60))
         config.consecutive_abnormal_windows = _get_int_env(
-            EnvConfigKey.PERFORMANCE_K,
+            EnvConfigKey.DLROVER_DIAGNOSIS_PERFORMANCE_K,
             config.consecutive_abnormal_windows,
             1,
         )
         config.degradation_ratio = _get_float_env(
-            EnvConfigKey.PERFORMANCE_P,
+            EnvConfigKey.DLROVER_DIAGNOSIS_PERFORMANCE_P,
             config.degradation_ratio,
             0.0,
             1.0,
         )
         config.severe_degradation_ratio = _get_float_env(
-            EnvConfigKey.PERFORMANCE_Q,
+            EnvConfigKey.DLROVER_DIAGNOSIS_PERFORMANCE_Q,
             config.severe_degradation_ratio,
             0.0,
             1.0,
@@ -365,12 +371,14 @@ class PerformanceDiagnostician(Diagnostician):
 
     Detection uses two independent rules:
 
-    1. sustained degradation: a high fraction of samples in tumbling windows
-       of at least m samples and n seconds are below p * baseline;
+    1. sustained degradation: a high fraction of samples in fixed step
+       windows are below p times a reference window;
     2. severe intermittent degradation: a smaller fraction of samples in the
-       same size tumbling windows are below q * baseline.
+       same windows are below q times a reference window.
 
-    Both rules confirm an issue after k consecutive abnormal windows.
+    Each window is compared with the previous window and a configurable
+    historical window. Both rules confirm an issue after k consecutive
+    abnormal windows.
 
     The existing TrainingLogCollector, PerformanceHistory, report path, and
     PerformanceIssue/PerformanceDiagnosisData structures are reused.
@@ -385,27 +393,19 @@ class PerformanceDiagnostician(Diagnostician):
             self._config.history_size,
             self._config.history_retention_seconds,
         )
-        self._healthy_records: Deque[PerformanceRecord] = deque(
-            maxlen=max(1, self._config.baseline_window_size)
-        )
-
         self._issue_reported = False
-        self._sustained_window_started_at: Optional[int] = None
-        self._sustained_window_sample_count = 0
-        self._sustained_window_abnormal_count = 0
-        self._sustained_window_threshold: Optional[float] = None
-        self._sustained_window_evidence: Deque[PerformanceRecord] = deque(
-            maxlen=max(1, self._config.maximum_evidence_records)
-        )
-        self._consecutive_abnormal_windows = 0
-        self._severe_window_started_at: Optional[int] = None
-        self._severe_window_sample_count = 0
-        self._severe_window_abnormal_count = 0
-        self._severe_window_threshold: Optional[float] = None
-        self._severe_window_evidence: Deque[PerformanceRecord] = deque(
-            maxlen=max(1, self._config.maximum_evidence_records)
-        )
+        self._recovery_baseline: Optional[float] = None
+        self._window_origin_step: Optional[int] = None
+        self._window_index = 0
+        self._window_start_timestamp: Optional[int] = None
+        self._window_records: List[PerformanceRecord] = []
+        self._window_history: Deque[PerformanceWindow] = deque()
+        self._consecutive_sustained_windows = 0
         self._consecutive_severe_windows = 0
+        self._sustained_sequence_reference: Optional[PerformanceWindow] = None
+        self._severe_sequence_reference: Optional[PerformanceWindow] = None
+        self._last_iteration: Optional[int] = None
+        self._context_key: Optional[Tuple[str, str, int, str]] = None
 
     @property
     def config(self) -> PerformanceDiagnosticianConfig:
@@ -416,12 +416,8 @@ class PerformanceDiagnostician(Diagnostician):
         return self._history
 
     @property
-    def healthy_throughputs(self) -> List[float]:
-        return [
-            record.throughput
-            for record in self._healthy_records
-            if record.throughput is not None
-        ]
+    def window_history(self) -> List[PerformanceWindow]:
+        return list(self._window_history)
 
     @staticmethod
     def parse_log_line(log_line: str) -> Optional[PerformanceRecord]:
@@ -490,8 +486,6 @@ class PerformanceDiagnostician(Diagnostician):
             return None
         return baseline * self._config.degradation_ratio
 
-    # A separate threshold models catastrophic slowdown instead of
-    # treating a 69%-of-baseline sample and a 5%-of-baseline sample equally.
     def _severe_threshold(self, baseline: Optional[float]) -> Optional[float]:
         if self._config.severe_throughput_threshold is not None:
             return self._config.severe_throughput_threshold
@@ -499,20 +493,6 @@ class PerformanceDiagnostician(Diagnostician):
             return None
         return baseline * self._config.severe_degradation_ratio
 
-    def _add_healthy_record(self, record: PerformanceRecord):
-        while self._healthy_records and (
-            record.timestamp - self._healthy_records[0].timestamp
-            > self._config.history_retention_seconds
-        ):
-            self._healthy_records.popleft()
-        self._healthy_records.append(record)
-
-    def _healthy_baseline(self) -> Optional[float]:
-        values = self.healthy_throughputs
-        return median(values) if values else None
-
-    # Obtain throughput samples from the existing PerformanceHistory
-    # instead of maintaining a separate consecutive-degradation list.
     def _throughput_records_in_window(
         self, now: int, window_seconds: int
     ) -> List[PerformanceRecord]:
@@ -523,177 +503,320 @@ class PerformanceDiagnostician(Diagnostician):
             if item.throughput is not None and start <= item.timestamp <= now
         ]
 
-    def _reset_sustained_window(self):
-        self._sustained_window_started_at = None
-        self._sustained_window_sample_count = 0
-        self._sustained_window_abnormal_count = 0
-        self._sustained_window_threshold = None
-        self._sustained_window_evidence.clear()
-
-    def _reset_sustained_detection(self):
-        self._reset_sustained_window()
-        self._consecutive_abnormal_windows = 0
-
-    def _reset_severe_window(self):
-        self._severe_window_started_at = None
-        self._severe_window_sample_count = 0
-        self._severe_window_abnormal_count = 0
-        self._severe_window_threshold = None
-        self._severe_window_evidence.clear()
-
-    def _reset_severe_detection(self):
-        self._reset_severe_window()
-        self._consecutive_severe_windows = 0
-
     def _reset_performance_windows(self):
-        self._reset_sustained_detection()
-        self._reset_severe_detection()
+        self._issue_reported = False
+        self._recovery_baseline = None
+        self._window_origin_step = None
+        self._window_index = 0
+        self._window_start_timestamp = None
+        self._window_records.clear()
+        self._window_history.clear()
+        self._consecutive_sustained_windows = 0
+        self._consecutive_severe_windows = 0
+        self._sustained_sequence_reference = None
+        self._severe_sequence_reference = None
+        self._last_iteration = None
+        self._history.clear()
 
-    # Rule A -- sustained degradation in non-overlapping, tumbling windows.
-    def _detect_sustained_degradation(
-        self,
-        baseline: Optional[float],
-        now: int,
-        record: Optional[PerformanceRecord] = None,
-    ) -> Tuple[
-        bool,
-        Optional[float],
-        float,
-        List[PerformanceRecord],
-        int,
-    ]:
-        if record is None:
-            record = self._history.latest
-        if record is None:
-            return False, None, 0.0, [], 0
-
-        throughput = record.throughput
-        if throughput is None or baseline is None:
-            return False, None, 0.0, [], 0
-
-        window_started_at = self._sustained_window_started_at
-        if window_started_at is None:
-            window_threshold = self._threshold(baseline)
-            if window_threshold is None:
-                return False, None, 0.0, [], 0
-            window_started_at = record.timestamp
-            self._sustained_window_started_at = window_started_at
-            self._sustained_window_threshold = window_threshold
-
-        threshold = self._sustained_window_threshold
-        if threshold is None:
-            return False, None, 0.0, [], 0
-        self._sustained_window_sample_count += 1
-        if throughput < threshold:
-            self._sustained_window_abnormal_count += 1
-            self._sustained_window_evidence.append(record)
-
-        fraction = (
-            self._sustained_window_abnormal_count
-            / self._sustained_window_sample_count
+    def _update_context(self, **kwargs):
+        context_key = (
+            str(kwargs.get("job_uid", "") or ""),
+            str(kwargs.get("run_id", "") or ""),
+            int(kwargs.get("rdzv_epoch", 0) or 0),
+            str(kwargs.get("config_fingerprint", "") or ""),
         )
-        minimum_steps = max(1, self._config.minimum_window_records)
-        minimum_duration = max(0, self._config.degradation_window_seconds)
-        elapsed = now - window_started_at
-        if (
-            self._sustained_window_sample_count < minimum_steps
-            or elapsed < minimum_duration
+        if self._context_key is None:
+            self._context_key = context_key
+            return
+        if context_key != self._context_key:
+            logger.info(
+                "[PERF-DIAG][worker] Reset performance windows because "
+                "the execution context changed: old=%s, new=%s.",
+                self._context_key,
+                context_key,
+            )
+            self._reset_performance_windows()
+            self._context_key = context_key
+
+    def _find_historical_window(
+        self,
+        current: PerformanceWindow,
+        previous: Optional[PerformanceWindow],
+    ) -> Optional[PerformanceWindow]:
+        cutoff = current.end_timestamp - self._config.history_lookback_seconds
+        for window in reversed(self._window_history):
+            if window.end_timestamp <= cutoff:
+                if previous is not None and window.index == previous.index:
+                    return None
+                return window
+        return None
+
+    def _append_window(self, window: PerformanceWindow):
+        self._window_history.append(window)
+        retention_seconds = max(
+            self._config.history_retention_seconds,
+            self._config.history_lookback_seconds * 2,
+        )
+        cutoff = window.end_timestamp - retention_seconds
+        while (
+            len(self._window_history) > 1
+            and self._window_history[0].end_timestamp < cutoff
         ):
-            return (
-                False,
-                threshold,
-                fraction,
-                [],
-                0,
+            self._window_history.popleft()
+
+    def _compare_window(
+        self,
+        records: List[PerformanceRecord],
+        reference: PerformanceWindow,
+        ratio: float,
+        absolute_threshold: Optional[float],
+        fraction_threshold: float,
+    ):
+        baseline = reference.median_throughput
+        threshold = (
+            absolute_threshold
+            if absolute_threshold is not None
+            else baseline * ratio
+        )
+        abnormal = [
+            record
+            for record in records
+            if record.throughput is not None and record.throughput < threshold
+        ]
+        fraction = len(abnormal) / max(1, len(records))
+        return fraction >= fraction_threshold, fraction, threshold, abnormal
+
+    def _close_current_window(self) -> Optional[PerformanceIssue]:
+        if self._window_origin_step is None or not self._window_records:
+            return None
+
+        throughputs = [
+            record.throughput
+            for record in self._window_records
+            if record.throughput is not None
+        ]
+        if not throughputs:
+            self._window_records.clear()
+            self._window_index += 1
+            return None
+
+        start_iteration = (
+            self._window_origin_step
+            + self._window_index * self._config.window_steps
+        )
+        end_iteration = start_iteration + self._config.window_steps - 1
+        current = PerformanceWindow(
+            index=self._window_index,
+            start_iteration=start_iteration,
+            end_iteration=end_iteration,
+            start_timestamp=self._window_start_timestamp
+            or self._window_records[0].timestamp,
+            end_timestamp=self._window_records[-1].timestamp,
+            sample_count=len(throughputs),
+            median_throughput=median(throughputs),
+        )
+        previous = self._window_history[-1] if self._window_history else None
+        historical = self._find_historical_window(current, previous)
+        records = list(self._window_records)
+
+        recent_sustained = None
+        historical_sustained = None
+        recent_severe = None
+        historical_severe = None
+        sustained_sequence = None
+        severe_sequence = None
+        if previous is not None:
+            recent_sustained = self._compare_window(
+                records,
+                previous,
+                self._config.degradation_ratio,
+                self._config.throughput_threshold,
+                self._config.degradation_fraction_threshold,
+            )
+            recent_severe = self._compare_window(
+                records,
+                previous,
+                self._config.severe_degradation_ratio,
+                self._config.severe_throughput_threshold,
+                self._config.severe_fraction_threshold,
+            )
+        if historical is not None:
+            historical_sustained = self._compare_window(
+                records,
+                historical,
+                self._config.degradation_ratio,
+                self._config.throughput_threshold,
+                self._config.degradation_fraction_threshold,
+            )
+            historical_severe = self._compare_window(
+                records,
+                historical,
+                self._config.severe_degradation_ratio,
+                self._config.severe_throughput_threshold,
+                self._config.severe_fraction_threshold,
+            )
+        if (
+            self._consecutive_sustained_windows > 0
+            and self._sustained_sequence_reference is not None
+        ):
+            sustained_sequence = self._compare_window(
+                records,
+                self._sustained_sequence_reference,
+                self._config.degradation_ratio,
+                self._config.throughput_threshold,
+                self._config.degradation_fraction_threshold,
+            )
+        if (
+            self._consecutive_severe_windows > 0
+            and self._severe_sequence_reference is not None
+        ):
+            severe_sequence = self._compare_window(
+                records,
+                self._severe_sequence_reference,
+                self._config.severe_degradation_ratio,
+                self._config.severe_throughput_threshold,
+                self._config.severe_fraction_threshold,
             )
 
-        abnormal_records = list(self._sustained_window_evidence)
-        abnormal_count = self._sustained_window_abnormal_count
-        window_is_abnormal = (
-            fraction >= self._config.degradation_fraction_threshold
-        )
-        if window_is_abnormal:
-            self._consecutive_abnormal_windows += 1
-        else:
-            self._consecutive_abnormal_windows = 0
-
-        detected = self._consecutive_abnormal_windows >= max(
-            1, self._config.consecutive_abnormal_windows
-        )
-        self._reset_sustained_window()
-        if detected:
-            self._consecutive_abnormal_windows = 0
-
-        return detected, threshold, fraction, abnormal_records, abnormal_count
-
-    # Rule B -- sparse/extreme degradation in the same tumbling windows.
-    def _detect_severe_degradation(
-        self,
-        baseline: Optional[float],
-        now: int,
-        record: Optional[PerformanceRecord] = None,
-    ) -> Tuple[
-        bool,
-        Optional[float],
-        float,
-        List[PerformanceRecord],
-        int,
-    ]:
-        if record is None:
-            record = self._history.latest
-        if record is None:
-            return False, None, 0.0, [], 0
-
-        throughput = record.throughput
-        if throughput is None or baseline is None:
-            return False, None, 0.0, [], 0
-
-        window_started_at = self._severe_window_started_at
-        if window_started_at is None:
-            window_threshold = self._severe_threshold(baseline)
-            if window_threshold is None:
-                return False, None, 0.0, [], 0
-            window_started_at = record.timestamp
-            self._severe_window_started_at = window_started_at
-            self._severe_window_threshold = window_threshold
-
-        threshold = self._severe_window_threshold
-        if threshold is None:
-            return False, None, 0.0, [], 0
-        self._severe_window_sample_count += 1
-        if throughput < threshold:
-            self._severe_window_abnormal_count += 1
-            self._severe_window_evidence.append(record)
-
-        fraction = (
-            self._severe_window_abnormal_count
-            / self._severe_window_sample_count
-        )
-        minimum_steps = max(1, self._config.minimum_window_records)
-        minimum_duration = max(0, self._config.degradation_window_seconds)
-        elapsed = now - window_started_at
-        if (
-            self._severe_window_sample_count < minimum_steps
-            or elapsed < minimum_duration
+        sustained_candidates = []
+        severe_candidates = []
+        for source, result in (
+            ("recent", recent_sustained),
+            ("historical", historical_sustained),
+            ("sequence", sustained_sequence),
         ):
-            return False, threshold, fraction, [], 0
+            if result is not None and result[0]:
+                reference = (
+                    previous
+                    if source == "recent"
+                    else historical
+                    if source == "historical"
+                    else self._sustained_sequence_reference
+                )
+                sustained_candidates.append(
+                    (result[1], source, result, reference)
+                )
+        for source, result in (
+            ("recent", recent_severe),
+            ("historical", historical_severe),
+            ("sequence", severe_sequence),
+        ):
+            if result is not None and result[0]:
+                reference = (
+                    previous
+                    if source == "recent"
+                    else historical
+                    if source == "historical"
+                    else self._severe_sequence_reference
+                )
+                severe_candidates.append(
+                    (result[1], source, result, reference)
+                )
 
-        abnormal_records = list(self._severe_window_evidence)
-        abnormal_count = self._severe_window_abnormal_count
-        window_is_abnormal = fraction >= self._config.severe_fraction_threshold
-        if window_is_abnormal:
+        sustained_any = bool(sustained_candidates)
+        severe_any = bool(severe_candidates)
+        if sustained_any:
+            if self._consecutive_sustained_windows == 0:
+                _, _, _, reference = max(
+                    sustained_candidates, key=lambda item: item[0]
+                )
+                self._sustained_sequence_reference = reference
+            self._consecutive_sustained_windows += 1
+        else:
+            self._consecutive_sustained_windows = 0
+            self._sustained_sequence_reference = None
+        if severe_any:
+            if self._consecutive_severe_windows == 0:
+                _, _, _, reference = max(
+                    severe_candidates, key=lambda item: item[0]
+                )
+                self._severe_sequence_reference = reference
             self._consecutive_severe_windows += 1
         else:
             self._consecutive_severe_windows = 0
+            self._severe_sequence_reference = None
 
-        detected = self._consecutive_severe_windows >= max(
-            1, self._config.consecutive_abnormal_windows
+        logger.info(
+            "[PERF-DIAG][worker] Closed step window: "
+            "window=%d, steps=%d..%d, samples=%d, median=%s, "
+            "previous=%s, historical=%s, "
+            "recent_sustained_fraction=%s, "
+            "historical_sustained_fraction=%s, "
+            "sequence_sustained_fraction=%s, "
+            "recent_severe_fraction=%s, "
+            "historical_severe_fraction=%s, "
+            "sequence_severe_fraction=%s, "
+            "sustained_consecutive=%d, severe_consecutive=%d.",
+            current.index,
+            current.start_iteration,
+            current.end_iteration,
+            current.sample_count,
+            current.median_throughput,
+            previous.median_throughput if previous else None,
+            historical.median_throughput if historical else None,
+            recent_sustained[1] if recent_sustained else None,
+            historical_sustained[1] if historical_sustained else None,
+            sustained_sequence[1] if sustained_sequence else None,
+            recent_severe[1] if recent_severe else None,
+            historical_severe[1] if historical_severe else None,
+            severe_sequence[1] if severe_sequence else None,
+            self._consecutive_sustained_windows,
+            self._consecutive_severe_windows,
         )
-        self._reset_severe_window()
-        if detected:
-            self._consecutive_severe_windows = 0
 
-        return detected, threshold, fraction, abnormal_records, abnormal_count
+        selected = None
+        selected_kind = ""
+        selected_source = ""
+        if severe_candidates and self._consecutive_severe_windows >= max(
+            1, self._config.consecutive_abnormal_windows
+        ):
+            _, selected_source, result, reference = max(
+                severe_candidates, key=lambda item: item[0]
+            )
+            selected = result
+            selected_kind = "severe"
+        elif (
+            sustained_candidates
+            and self._consecutive_sustained_windows
+            >= max(1, self._config.consecutive_abnormal_windows)
+        ):
+            _, selected_source, result, reference = max(
+                sustained_candidates, key=lambda item: item[0]
+            )
+            selected = result
+            selected_kind = "sustained"
+
+        issue = None
+        if selected is not None:
+            _, fraction, threshold, abnormal_records = selected
+            issue = self._make_issue(
+                records[-1],
+                reference.median_throughput if reference else None,
+                threshold,
+                abnormal_records,
+            )
+            self._issue_reported = True
+            self._recovery_baseline = (
+                reference.median_throughput if reference else None
+            )
+            self._consecutive_sustained_windows = 0
+            self._consecutive_severe_windows = 0
+            self._sustained_sequence_reference = None
+            self._severe_sequence_reference = None
+            self._history.clear()
+            rule = f"{selected_kind}_{selected_source}"
+            self._log_confirmed_issue(
+                rule,
+                issue,
+                fraction,
+                records[-1],
+            )
+
+        self._append_window(current)
+        self._window_records.clear()
+        self._window_index += 1
+        self._window_start_timestamp = None
+        return issue
 
     # Recovery uses a recent window instead of N consecutive samples.
     def _is_recovered(
@@ -803,117 +926,163 @@ class PerformanceDiagnostician(Diagnostician):
             issue.last_timestamp,
         )
 
-    def _evaluate_record(
+    def _advance_record(
         self, record: PerformanceRecord
     ) -> Optional[PerformanceIssue]:
-        throughput = record.throughput
-        if throughput is None:
+        iteration = record.iteration
+        if iteration is None or record.throughput is None:
             return None
 
-        baseline = (
-            self._healthy_baseline()
-            if len(self._healthy_records)
-            >= max(1, self._config.minimum_baseline_records)
-            else None
-        )
-        normal_threshold = self._threshold(baseline)
+        if self._window_origin_step is None:
+            self._window_origin_step = iteration
+            self._window_start_timestamp = record.timestamp
 
-        # Once an issue has been reported, do not generate another
-        # issue until a window-based recovery condition is satisfied.
-        if self._issue_reported:
-            if self._is_recovered(baseline, record.timestamp):
-                self._issue_reported = False
-                self._reset_performance_windows()
-                # Only feed a recovered/healthy value back into the healthy
-                # baseline. This prevents an active incident from pulling the
-                # baseline downward.
-                if normal_threshold is None or throughput >= normal_threshold:
-                    self._add_healthy_record(record)
+        expected_start = (
+            self._window_origin_step
+            + self._window_index * self._config.window_steps
+        )
+        expected_end = expected_start + self._config.window_steps - 1
+        if iteration < expected_start:
             return None
 
-        # Evaluate both independent detectors. Severe degradation is
-        # checked first so evidence/threshold reflect the stronger condition
-        # when both rules are true at the same time.
-        (
-            severe_detected,
-            severe_threshold,
-            severe_fraction,
-            severe_records,
-            severe_count,
-        ) = self._detect_severe_degradation(
-            baseline,
-            record.timestamp,
-            record,
-        )
-        (
-            sustained_detected,
-            sustained_threshold,
-            sustained_fraction,
-            degraded_records,
-            degraded_count,
-        ) = self._detect_sustained_degradation(
-            baseline,
-            record.timestamp,
-            record,
-        )
-
-        if severe_detected:
-            self._issue_reported = True
-            self._reset_performance_windows()
-            issue = self._make_issue(
-                record,
-                baseline,
-                severe_threshold,
-                severe_records,
-                severe_count,
+        if iteration > expected_end:
+            issue = self._close_current_window()
+            if issue is not None:
+                return issue
+            self._window_index = (
+                iteration - self._window_origin_step
+            ) // self._config.window_steps
+            self._window_start_timestamp = record.timestamp
+            expected_end = (
+                self._window_origin_step
+                + (self._window_index + 1) * self._config.window_steps
+                - 1
             )
-            self._log_confirmed_issue(
-                "severe",
-                issue,
-                severe_fraction,
-                record,
-            )
-            return issue
 
-        if sustained_detected:
-            self._issue_reported = True
-            self._reset_performance_windows()
-            issue = self._make_issue(
-                record,
-                baseline,
-                sustained_threshold,
-                degraded_records,
-                degraded_count,
-            )
-            self._log_confirmed_issue(
-                "sustained",
-                issue,
-                sustained_fraction,
-                record,
-            )
-            return issue
-
-        # Evaluate the normal threshold and add the record to the healthy baseline
-        # if it meets the criteria.
-        if normal_threshold is None or throughput >= normal_threshold:
-            self._add_healthy_record(record)
-
+        if not self._window_records:
+            self._window_start_timestamp = record.timestamp
+        self._window_records.append(record)
+        if iteration >= expected_end:
+            return self._close_current_window()
         return None
 
     def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
+        self._update_context(**kwargs)
+        log_file = kwargs.get("log_file", "")
+        logger.info(
+            "[PERF-DIAG][worker] Performance check started: "
+            "node=%s, log_file=%s, history_records=%d, "
+            "issue_reported=%s, window_steps=%d, "
+            "history_lookback_seconds=%d, origin_step=%s, "
+            "window_index=%d, current_window_records=%d, "
+            "k=%d, p=%s, q=%s.",
+            env_utils.get_node_id(),
+            log_file,
+            len(self._history),
+            self._issue_reported,
+            self._config.window_steps,
+            self._config.history_lookback_seconds,
+            self._window_origin_step,
+            self._window_index,
+            len(self._window_records),
+            self._config.consecutive_abnormal_windows,
+            self._config.degradation_ratio,
+            self._config.severe_degradation_ratio,
+        )
         training_log = self._collect_training_log(**kwargs)
         if training_log is None or not training_log.logs:
+            logger.info(
+                "[PERF-DIAG][worker] Performance check skipped: "
+                "no training log lines were collected."
+            )
             return None
 
         issue = None
+        parsed_records = 0
+        duplicate_records = 0
+        new_records = 0
+        invalid_records = 0
+        last_record = None
         for log_line in training_log.logs:
             record = self.parse_log_line(log_line)
-            if record is None or not self._history.add(record):
+            if record is None:
                 continue
-            candidate = self._evaluate_record(record)
+            parsed_records += 1
+            if record.iteration is None or record.throughput is None:
+                invalid_records += 1
+                continue
+            if (
+                self._last_iteration is not None
+                and record.iteration <= self._last_iteration
+            ):
+                duplicate_records += 1
+                continue
+            if not self._history.add(record):
+                duplicate_records += 1
+                continue
+            self._last_iteration = record.iteration
+            new_records += 1
+            last_record = record
+            if self._issue_reported and not self._is_recovered(
+                self._recovery_baseline,
+                record.timestamp,
+            ):
+                continue
+            if self._issue_reported:
+                logger.info(
+                    "[PERF-DIAG][worker] Performance issue recovered at "
+                    "iteration=%s; reset performance windows.",
+                    record.iteration,
+                )
+                self._reset_performance_windows()
+                self._history.add(record)
+                self._last_iteration = record.iteration
+            candidate = self._advance_record(record)
+            logger.debug(
+                "[PERF-DIAG][worker] Evaluated record: "
+                "timestamp=%s, iteration=%s, throughput=%s, "
+                "origin_step=%s, window_index=%d, "
+                "current_window_records=%d, "
+                "sustained_consecutive=%d, "
+                "severe_consecutive=%d, issue=%s.",
+                record.timestamp,
+                record.iteration,
+                record.throughput,
+                self._window_origin_step,
+                self._window_index,
+                len(self._window_records),
+                self._consecutive_sustained_windows,
+                self._consecutive_severe_windows,
+                candidate is not None,
+            )
             if issue is None and candidate is not None:
                 issue = candidate
 
+        logger.info(
+            "[PERF-DIAG][worker] Performance check finished: "
+            "collected_lines=%d, parsed_records=%d, "
+            "invalid_records=%d, duplicate_records=%d, "
+            "new_records=%d, "
+            "last_timestamp=%s, last_iteration=%s, "
+            "last_throughput=%s, origin_step=%s, "
+            "window_index=%d, current_window_records=%d, "
+            "sustained_consecutive=%d, severe_consecutive=%d, "
+            "issue_found=%s.",
+            len(training_log.logs),
+            parsed_records,
+            invalid_records,
+            duplicate_records,
+            new_records,
+            last_record.timestamp if last_record else None,
+            last_record.iteration if last_record else None,
+            last_record.throughput if last_record else None,
+            self._window_origin_step,
+            self._window_index,
+            len(self._window_records),
+            self._consecutive_sustained_windows,
+            self._consecutive_severe_windows,
+            issue is not None,
+        )
         if issue is None:
             return None
         return DiagnosisObservation(
@@ -987,6 +1156,23 @@ class PerformanceDiagnostician(Diagnostician):
             run_id=run_id,
             rdzv_epoch=rdzv_epoch,
             config_fingerprint=config_fingerprint,
+        )
+        logger.info(
+            "[PERF-DIAG][worker] Resolved performance issue into report: "
+            "node=%s, rank=%s, report_id=%s, metric=%s, "
+            "value=%s, baseline=%s, threshold=%s, ratio=%s, "
+            "abnormal_samples=%s, iterations=%s..%s.",
+            node_id,
+            node_rank,
+            report_id,
+            issue.metric_name,
+            issue.metric_value,
+            issue.baseline_value,
+            issue.threshold_value,
+            issue.degradation_ratio,
+            issue.sample_count,
+            issue.first_iteration,
+            issue.last_iteration,
         )
         return [
             ReportDiagnosisDataAction(

@@ -54,7 +54,7 @@ class FailureNodeDiagnostician(Diagnostician):
         error_codes = errors.split("#")
         error_codes = [error_code.strip() for error_code in error_codes]
 
-        collector = TrainingLogCollector(log_file, 5000)
+        collector = TrainingLogCollector(log_file, 300)
         training_log = collector.collect_data()
         logs = training_log.logs
         if not logs or len(logs) == 0:

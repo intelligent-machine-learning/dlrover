@@ -137,7 +137,8 @@ class JobPerformanceDiagnosticianTest(unittest.TestCase):
 
     def test_create_profiling_actions_for_active_workers(self):
         self._report("report-1")
-        actions = self.diagnostician.diagnose(**self._context())
+        with self.assertLogs("dlrover.logger", level="INFO") as captured:
+            actions = self.diagnostician.diagnose(**self._context())
 
         self.assertEqual(len(actions), 3)
         self.assertTrue(all(isinstance(a, NodeAction) for a in actions))
@@ -170,6 +171,23 @@ class JobPerformanceDiagnosticianTest(unittest.TestCase):
         self.assertIsInstance(
             self.diagnostician.diagnose(**self._context())[0],
             NoAction,
+        )
+        output = "\n".join(captured.output)
+        self.assertIn(
+            "[PERF-DIAG][master] Performance check started",
+            output,
+        )
+        self.assertIn(
+            "[PERF-DIAG][master] Fetched performance reports: count=1",
+            output,
+        )
+        self.assertIn(
+            "[PERF-DIAG][master] Processing report:",
+            output,
+        )
+        self.assertIn(
+            "[PERF-DIAG][master] Resolving performance issue:",
+            output,
         )
 
     def test_correlate_reports_and_reject_stale_epoch(self):

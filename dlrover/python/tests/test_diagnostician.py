@@ -68,7 +68,10 @@ from dlrover.python.tests.test_utils import start_local_master
 from dlrover.python.util.function_util import TimeoutException
 from typing import Dict, List, Tuple, OrderedDict
 from unittest import mock
-from dlrover.python.diagnosis.common.diagnosis_data import WorkerTrainingMetric
+from dlrover.python.diagnosis.common.diagnosis_data import (
+    TrainingLog,
+    WorkerTrainingMetric,
+)
 from dlrover.python.diagnosis.common.constants import (
     DiagnosisDataType,
 )
@@ -127,6 +130,28 @@ class DiagnosticianTest(unittest.TestCase):
 
         ob = diagnostician.observe(errors=errors)
         self.assertFalse(ob)
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.node_failure."
+        "TrainingLogCollector"
+    )
+    def test_failure_node_diagnostician_reads_latest_300_lines(
+        self, collector_cls
+    ):
+        collector_cls.return_value.collect_data.return_value = TrainingLog(
+            logs=["error code is 507035"]
+        )
+
+        observation = FailureNodeDiagnostician().observe(
+            log_file="training.log",
+            errors="error code is 507035",
+        )
+
+        self.assertEqual(
+            observation.observation,
+            DiagnosisErrorConstant.NODE_FAILED,
+        )
+        collector_cls.assert_called_once_with("training.log", 300)
 
     def test_resource_collect_error_diagnostician(self):
         error_log = "GPU is lost"

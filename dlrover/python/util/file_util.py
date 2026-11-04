@@ -33,27 +33,28 @@ def is_same_path(path1: str, path2: str):
     return Path(path1).resolve() == Path(path2).resolve()
 
 
-def read_last_n_lines(filepath: str, n_lines: int) -> List[bytearray]:
+def read_last_n_lines(filepath: str, n_lines: int) -> List[bytes]:
     try:
+        if n_lines <= 0:
+            return []
         with open(filepath, "rb") as f:
-            remain_lines = n_lines
             block_size = 1024
             buffer = bytearray()
-
             f.seek(0, 2)
-            total_size = f.tell()
-
-            while remain_lines > 0 and total_size > 0:
-                read_size = min(block_size, total_size)
-                f.seek(-read_size, 1)
-                buffer.extend(f.read(read_size))
-                total_size -= read_size
-                f.seek(-read_size, 1)
-
-                remain_lines -= buffer.count(b"\n")
+            position = f.tell()
+            newline_count = 0
+            while position > 0 and newline_count <= n_lines:
+                read_size = min(block_size, position)
+                position -= read_size
+                f.seek(position)
+                chunk = f.read(read_size)
+                buffer[:0] = chunk
+                newline_count += chunk.count(b"\n")
 
             lines = buffer.split(b"\n")
-            return lines[-n_lines:]
+            if lines and lines[-1] == b"":
+                lines.pop()
+            return [bytes(line) for line in lines[-n_lines:]]
     except Exception as e:
         logger.error(f"Fail to read {n_lines} line from {filepath}: {e}")
         return []

@@ -120,7 +120,21 @@ class JobPerformanceDiagnostician(Diagnostician):
         return dict(self._rounds)
 
     def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
+        logger.info(
+            "[PERF-DIAG][master] Performance check started: "
+            "paused=%s, data_manager=%s, last_sequence_id=%s, "
+            "rounds=%d, ready_rounds=%d.",
+            kwargs.get("observing_paused"),
+            self._data_manager is not None,
+            self._last_processed_sequence_id,
+            len(self._rounds),
+            len(self._ready_rounds),
+        )
         if kwargs.get("observing_paused") or self._data_manager is None:
+            logger.info(
+                "[PERF-DIAG][master] Performance check skipped: "
+                "observing is paused or data manager is unavailable."
+            )
             return None
 
         now = int(time.time())
@@ -130,7 +144,30 @@ class JobPerformanceDiagnostician(Diagnostician):
             after_sequence_id=self._last_processed_sequence_id,
             limit=self._report_batch_size,
         )
+        logger.info(
+            "[PERF-DIAG][master] Fetched performance reports: "
+            "count=%d, sequence_ids=%s.",
+            len(reports),
+            [report.sequence_id for report in reports],
+        )
         for report in reports:
+            logger.info(
+                "[PERF-DIAG][master] Processing report: "
+                "sequence_id=%s, report_id=%s, node=%s, rank=%s, "
+                "issue=%s, metric=%s, value=%s, baseline=%s, "
+                "threshold=%s, samples=%s, observed_at=%s.",
+                report.sequence_id,
+                report.report_id,
+                report.node_id,
+                report.node_rank,
+                report.issue_type,
+                report.metric_name,
+                report.metric_value,
+                report.baseline_value,
+                report.threshold_value,
+                report.sample_count,
+                self._report_observed_at(report),
+            )
             self._process_report(report, kwargs)
             self._last_processed_sequence_id = report.sequence_id
 
@@ -144,10 +181,26 @@ class JobPerformanceDiagnostician(Diagnostician):
             ):
                 self._ready_rounds.popleft()
                 continue
+            logger.info(
+                "[PERF-DIAG][master] Performance issue ready: "
+                "performance_id=%s, reports=%s, nodes=%s, issues=%s.",
+                performance_id,
+                performance.source_report_ids,
+                performance.source_node_ids,
+                performance.issue_types,
+            )
             return DiagnosisObservation(
                 observation=DiagnosisErrorConstant.TRAINING_SPEED_DEGRADATION,
                 extra_infos={"performance_id": performance_id},
             )
+        logger.info(
+            "[PERF-DIAG][master] Performance check finished: "
+            "reports_processed=%d, rounds=%d, ready_rounds=%d, "
+            "issue_found=False.",
+            len(reports),
+            len(self._rounds),
+            len(self._ready_rounds),
+        )
         return None
 
     def resolve(
@@ -158,11 +211,20 @@ class JobPerformanceDiagnostician(Diagnostician):
             or problem.observation
             != DiagnosisErrorConstant.TRAINING_SPEED_DEGRADATION
         ):
+            logger.info(
+                "[PERF-DIAG][master] Resolve skipped: no performance "
+                "degradation problem."
+            )
             return [NoAction()]
 
         performance_id = problem.extra_infos.get("performance_id", "")
         performance = self._rounds.get(performance_id)
         if performance is None or performance.state != DiagnosisState.ISSUE:
+            logger.info(
+                "[PERF-DIAG][master] Resolve skipped: performance_id=%s "
+                "is missing or no longer in ISSUE state.",
+                performance_id,
+            )
             self._discard_ready_round(performance_id)
             return [NoAction()]
 
@@ -184,6 +246,15 @@ class JobPerformanceDiagnostician(Diagnostician):
             return [NoAction()]
 
         actions = self._build_actions(performance, workers)
+        logger.info(
+            "[PERF-DIAG][master] Resolving performance issue: "
+            "performance_id=%s, workers=%s, actions=%s, "
+            "duration_seconds=%s.",
+            performance_id,
+            [node.id for node in workers],
+            [action.action_id for action in actions],
+            DiagnosisConstant.PROFILING_DEFAULT_DURATION_SECS,
+        )
         performance.action_group_id = performance.performance_id
         performance.planned_action_ids = [
             action.action_id for action in actions
@@ -204,6 +275,11 @@ class JobPerformanceDiagnostician(Diagnostician):
 
     def _process_report(self, report, context):
         if not isinstance(report, PerformanceDiagnosisData):
+            logger.info(
+                "[PERF-DIAG][master] Ignore unsupported report: "
+                "actual_class=%s.",
+                report.__class__.__name__,
+            )
             return
 
         now = int(time.time())
@@ -222,6 +298,13 @@ class JobPerformanceDiagnostician(Diagnostician):
             DiagnosisState.ACTION,
             DiagnosisState.CLOSED,
         ):
+            logger.info(
+                "[PERF-DIAG][master] Ignore report %s: performance %s "
+                "is already in state %s.",
+                report.report_id,
+                performance.performance_id,
+                performance.state,
+            )
             return
 
         invalid_reason = self._validation_error(report, context)
@@ -238,6 +321,15 @@ class JobPerformanceDiagnostician(Diagnostician):
 
         performance.state = DiagnosisState.ISSUE
         performance.explanation = "training speed degradation confirmed"
+        logger.info(
+            "[PERF-DIAG][master] Report accepted and correlated: "
+            "performance_id=%s, report_id=%s, source_nodes=%s, "
+            "source_reports=%s.",
+            performance.performance_id,
+            report.report_id,
+            performance.source_node_ids,
+            performance.source_report_ids,
+        )
         logger.info(
             f"Confirm performance issue {performance.performance_id} "
             f"from report {report.report_id}."

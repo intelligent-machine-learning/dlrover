@@ -34,6 +34,7 @@ from dlrover.python.diagnosis.diagnostician.performance import (
     PerformanceDiagnostician,
     PerformanceDiagnosticianConfig,
     PerformanceRecord,
+    PerformanceWindow,
 )
 
 
@@ -59,14 +60,24 @@ class TestPerformanceDiagnostician(unittest.TestCase):
             throughput,
         )
 
+    @staticmethod
+    def _window_logs(start_iteration, throughput, second):
+        return [
+            TestPerformanceDiagnostician._log(
+                second,
+                start_iteration + offset,
+                throughput,
+            )
+            for offset in range(3)
+        ]
+
     def _diagnostician(self):
         return PerformanceDiagnostician(
             PerformanceDiagnosticianConfig(
-                minimum_baseline_records=3,
-                degradation_window_seconds=2,
-                degradation_fraction_threshold=0.3,
-                minimum_window_records=3,
-                severe_fraction_threshold=1.0,
+                window_steps=3,
+                history_lookback_seconds=300,
+                degradation_fraction_threshold=0.7,
+                severe_fraction_threshold=0.1,
                 recovery_window_seconds=1,
                 recovery_healthy_fraction=1.0,
                 minimum_recovery_records=2,
@@ -78,23 +89,24 @@ class TestPerformanceDiagnostician(unittest.TestCase):
             self._log(13, 144377, 0.6)
         )
         self.assertIsNotNone(record)
+        assert record is not None
         self.assertEqual(record.iteration, 144377)
         self.assertEqual(record.throughput, 0.6)
         self.assertEqual(record.metrics["tokens_b_per_day_per_gpu"], 1.0)
 
-    def test_requires_sustained_degradation_and_deduplicates_tail(self):
+    def test_requires_degradation_and_deduplicates_tail(self):
         diagnostician = self._diagnostician()
-        healthy = [self._log(i, i, 1.0) for i in range(1, 4)]
-        degraded = [
-            self._log(4, 4, 0.5),
-            self._log(5, 5, 0.5),
-            self._log(6, 6, 0.5),
-        ]
+        healthy = self._window_logs(1, 1.0, 1)
+        degraded = self._window_logs(4, 0.5, 2)
 
         self.assertIsNone(diagnostician.observe(logs=healthy))
         observation = diagnostician.observe(logs=degraded)
         self.assertIsNotNone(observation)
-        self.assertEqual(observation.observation, "training_speed_degradation")
+        assert observation is not None
+        self.assertEqual(
+            observation.observation,
+            "training_speed_degradation",
+        )
 
         actions = diagnostician.resolve(
             observation,
@@ -123,6 +135,7 @@ class TestPerformanceDiagnostician(unittest.TestCase):
         )
         self.assertEqual(serialized_action.report_id, actions[0].report_id)
         self.assertEqual(serialized_action.data_type, actions[0].data_type)
+        self.assertIsNone(diagnostician.observe(logs=healthy + degraded))
 
         repeated_actions = diagnostician.resolve(
             observation,
@@ -135,18 +148,105 @@ class TestPerformanceDiagnostician(unittest.TestCase):
         )
         self.assertEqual(repeated_actions[0].report_id, actions[0].report_id)
         self.assertEqual(
-            repeated_actions[0].data_content, actions[0].data_content
+            repeated_actions[0].data_content,
+            actions[0].data_content,
         )
-        self.assertIsNone(diagnostician.observe(logs=healthy + degraded))
 
-    def test_confirmed_issue_logs_details(self):
+    def test_confirmed_issue_logs_window_details(self):
+        diagnostician = self._diagnostician()
+        self.assertIsNone(
+            diagnostician.observe(logs=self._window_logs(1, 1.0, 1))
+        )
+
+        with self.assertLogs("dlrover.logger", level="INFO") as captured:
+            observation = diagnostician.observe(
+                logs=self._window_logs(4, 0.5, 2)
+            )
+
+        self.assertIsNotNone(observation)
+        output = "\n".join(captured.output)
+        self.assertIn("Performance check started", output)
+        self.assertIn("Performance check finished", output)
+        self.assertIn("Closed step window", output)
+        self.assertIn("steps=4..6", output)
+        self.assertIn("previous=1.0", output)
+        self.assertIn("rule=sustained_recent", output)
+        self.assertIn("Confirmed training speed degradation", output)
+        self.assertIn("baseline=1.0", output)
+        self.assertIn("threshold=0.7", output)
+        self.assertIn("abnormal_fraction=1.000", output)
+
+    def test_checkpoint_iteration_defines_window_origin(self):
+        diagnostician = self._diagnostician()
+        self.assertIsNone(
+            diagnostician.observe(logs=self._window_logs(5001, 1.0, 1))
+        )
+        windows = diagnostician.window_history
+        self.assertEqual(len(windows), 1)
+        self.assertEqual(windows[0].start_iteration, 5001)
+        self.assertEqual(windows[0].end_iteration, 5003)
+
+        observation = diagnostician.observe(
+            logs=self._window_logs(5004, 0.5, 2)
+        )
+        self.assertIsNotNone(observation)
+        self.assertEqual(
+            diagnostician.window_history[-1].start_iteration, 5004
+        )
+
+    def test_context_change_resets_checkpoint_windows(self):
         diagnostician = self._diagnostician()
         self.assertIsNone(
             diagnostician.observe(
+                logs=self._window_logs(1, 1.0, 1),
+                run_id="run-1",
+                rdzv_epoch=1,
+            )
+        )
+        self.assertIsNone(
+            diagnostician.observe(
+                logs=self._window_logs(5001, 1.0, 2),
+                run_id="run-2",
+                rdzv_epoch=2,
+            )
+        )
+        self.assertEqual(diagnostician._window_origin_step, 5001)
+        self.assertEqual(diagnostician.window_history[0].start_iteration, 5001)
+
+    def test_historical_window_detects_gradual_degradation(self):
+        diagnostician = PerformanceDiagnostician(
+            PerformanceDiagnosticianConfig(
+                window_steps=3,
+                history_lookback_seconds=5,
+                degradation_fraction_threshold=1.0,
+                severe_fraction_threshold=1.0,
+            )
+        )
+
+        self.assertIsNone(
+            diagnostician.observe(
                 logs=[
-                    self._log(1, 1, 1.0),
-                    self._log(2, 2, 1.0),
-                    self._log(3, 3, 1.0),
+                    self._log_at("2026-10-15 12:00:00", 1, 1.0),
+                    self._log_at("2026-10-15 12:00:00", 2, 1.0),
+                    self._log_at("2026-10-15 12:00:00", 3, 1.0),
+                ]
+            )
+        )
+        self.assertIsNone(
+            diagnostician.observe(
+                logs=[
+                    self._log_at("2026-10-15 12:00:03", 4, 0.95),
+                    self._log_at("2026-10-15 12:00:03", 5, 0.95),
+                    self._log_at("2026-10-15 12:00:03", 6, 0.95),
+                ]
+            )
+        )
+        self.assertIsNone(
+            diagnostician.observe(
+                logs=[
+                    self._log_at("2026-10-15 12:00:06", 7, 0.9),
+                    self._log_at("2026-10-15 12:00:06", 8, 0.9),
+                    self._log_at("2026-10-15 12:00:06", 9, 0.9),
                 ]
             )
         )
@@ -154,175 +254,107 @@ class TestPerformanceDiagnostician(unittest.TestCase):
         with self.assertLogs("dlrover.logger", level="INFO") as captured:
             observation = diagnostician.observe(
                 logs=[
-                    self._log(4, 4, 0.5),
-                    self._log(5, 5, 0.5),
-                    self._log(6, 6, 0.5),
+                    self._log_at("2026-10-15 12:00:09", 10, 0.65),
+                    self._log_at("2026-10-15 12:00:09", 11, 0.65),
+                    self._log_at("2026-10-15 12:00:09", 12, 0.65),
                 ]
             )
 
         self.assertIsNotNone(observation)
         output = "\n".join(captured.output)
-        self.assertIn("Confirmed training speed degradation", output)
-        self.assertIn("rule=sustained", output)
-        self.assertIn("trigger_throughput=0.5", output)
-        self.assertIn("worst_throughput=0.5", output)
-        self.assertIn("baseline=1.0", output)
-        self.assertIn("threshold=0.7", output)
-        self.assertIn("abnormal_fraction=1.000", output)
-        self.assertIn("abnormal_samples=3", output)
-        self.assertIn("iterations=4..6", output)
-
-    def test_recovery_allows_a_new_issue(self):
-        diagnostician = self._diagnostician()
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[
-                    self._log(1, 1, 1.0),
-                    self._log(2, 2, 1.0),
-                    self._log(3, 3, 1.0),
-                ]
-            )
-        )
-        self.assertIsNotNone(
-            diagnostician.observe(
-                logs=[
-                    self._log(4, 4, 0.5),
-                    self._log(5, 5, 0.5),
-                    self._log(6, 6, 0.5),
-                ]
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[self._log(7, 7, 1.0), self._log(8, 8, 1.0)]
-            )
-        )
-        self.assertIsNotNone(
-            diagnostician.observe(
-                logs=[
-                    self._log(9, 9, 0.5),
-                    self._log(10, 10, 0.5),
-                    self._log(11, 11, 0.5),
-                ]
-            )
-        )
-
-    def test_sustained_window_uses_steps_and_duration(self):
-        diagnostician = PerformanceDiagnostician(
-            PerformanceDiagnosticianConfig(
-                minimum_baseline_records=1,
-                minimum_window_records=3,
-                degradation_window_seconds=60,
-                degradation_fraction_threshold=1.0,
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[
-                    self._log_at(
-                        "2026-10-15 12:00:00",
-                        1,
-                        1.0,
-                    )
-                ]
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[
-                    self._log_at(
-                        "2026-10-15 12:01:00",
-                        2,
-                        0.5,
-                    ),
-                    self._log_at(
-                        "2026-10-15 12:03:00",
-                        3,
-                        0.5,
-                    ),
-                ]
-            )
-        )
-        self.assertIsNotNone(
-            diagnostician.observe(
-                logs=[
-                    self._log_at(
-                        "2026-10-15 12:05:00",
-                        4,
-                        0.5,
-                    )
-                ]
-            )
-        )
-
-    def test_sustained_window_waits_for_duration(self):
-        diagnostician = PerformanceDiagnostician(
-            PerformanceDiagnosticianConfig(
-                minimum_baseline_records=1,
-                minimum_window_records=2,
-                degradation_window_seconds=120,
-                degradation_fraction_threshold=1.0,
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[self._log_at("2026-10-15 12:00:00", 1, 1.0)]
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[
-                    self._log_at("2026-10-15 12:00:30", 2, 0.5),
-                    self._log_at("2026-10-15 12:01:00", 3, 0.5),
-                ]
-            )
-        )
-        self.assertIsNotNone(
-            diagnostician.observe(
-                logs=[self._log_at("2026-10-15 12:02:30", 4, 0.5)]
-            )
-        )
+        self.assertIn("historical=0.95", output)
+        self.assertIn("rule=sustained_historical", output)
 
     def test_consecutive_abnormal_windows_are_required(self):
         diagnostician = PerformanceDiagnostician(
             PerformanceDiagnosticianConfig(
-                minimum_baseline_records=1,
-                minimum_window_records=2,
-                degradation_window_seconds=0,
+                window_steps=3,
+                history_lookback_seconds=300,
                 degradation_fraction_threshold=1.0,
+                severe_fraction_threshold=1.0,
                 consecutive_abnormal_windows=2,
             )
         )
-        self.assertIsNone(diagnostician.observe(logs=[self._log(1, 1, 1.0)]))
+        self.assertIsNone(
+            diagnostician.observe(logs=self._window_logs(1, 1.0, 1))
+        )
+        self.assertIsNone(
+            diagnostician.observe(logs=self._window_logs(4, 0.5, 2))
+        )
+        observation = diagnostician.observe(logs=self._window_logs(7, 0.5, 3))
+        self.assertIsNotNone(observation)
+
+    def test_severe_degradation_uses_q(self):
+        diagnostician = PerformanceDiagnostician(
+            PerformanceDiagnosticianConfig(
+                window_steps=3,
+                history_lookback_seconds=300,
+                degradation_fraction_threshold=0.7,
+                severe_fraction_threshold=0.3,
+                severe_degradation_ratio=0.2,
+            )
+        )
+        self.assertIsNone(
+            diagnostician.observe(logs=self._window_logs(1, 1.0, 1))
+        )
+        observation = diagnostician.observe(
+            logs=[
+                self._log(2, 4, 0.1),
+                self._log(2, 5, 1.0),
+                self._log(2, 6, 1.0),
+            ]
+        )
+        self.assertIsNotNone(observation)
+        assert observation is not None
+        issue = PerformanceIssue.from_json(
+            observation.extra_infos["performance_issue"]
+        )
+        self.assertEqual(issue.metric_value, 0.1)
+        self.assertAlmostEqual(issue.threshold_value, 0.2)
+        self.assertAlmostEqual(issue.degradation_ratio, 0.1)
+
+    def test_recovery_allows_a_new_issue(self):
+        diagnostician = self._diagnostician()
+        self.assertIsNone(
+            diagnostician.observe(logs=self._window_logs(1, 1.0, 1))
+        )
+        self.assertIsNotNone(
+            diagnostician.observe(logs=self._window_logs(4, 0.5, 2))
+        )
         self.assertIsNone(
             diagnostician.observe(
-                logs=[self._log(2, 2, 0.5), self._log(3, 3, 0.5)]
+                logs=[
+                    self._log(3, 7, 1.0),
+                    self._log(3, 8, 1.0),
+                ]
             )
         )
         self.assertIsNone(
             diagnostician.observe(
-                logs=[self._log(4, 4, 1.0), self._log(5, 5, 1.0)]
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[self._log(6, 6, 0.5), self._log(7, 7, 0.5)]
+                logs=[
+                    self._log(4, 9, 1.0),
+                    self._log(4, 10, 1.0),
+                ]
             )
         )
         self.assertIsNotNone(
             diagnostician.observe(
-                logs=[self._log(8, 8, 0.5), self._log(9, 9, 0.5)]
+                logs=[
+                    self._log(5, 11, 0.5),
+                    self._log(5, 12, 0.5),
+                    self._log(5, 13, 0.5),
+                ]
             )
         )
 
     def test_degradation_ratio_is_configurable(self):
         diagnostician = PerformanceDiagnostician(
             PerformanceDiagnosticianConfig(
-                minimum_baseline_records=1,
-                minimum_window_records=1,
-                degradation_window_seconds=0,
+                window_steps=1,
+                history_lookback_seconds=300,
                 degradation_fraction_threshold=1.0,
                 degradation_ratio=0.8,
+                severe_fraction_threshold=1.0,
             )
         )
         self.assertIsNone(diagnostician.observe(logs=[self._log(1, 1, 1.0)]))
@@ -330,10 +362,10 @@ class TestPerformanceDiagnostician(unittest.TestCase):
             diagnostician.observe(logs=[self._log(2, 2, 0.75)])
         )
 
-    def test_sustained_degradation_defaults(self):
+    def test_performance_defaults(self):
         config = PerformanceDiagnosticianConfig()
-        self.assertEqual(config.minimum_window_records, 10)
-        self.assertEqual(config.degradation_window_seconds, 60)
+        self.assertEqual(config.window_steps, 100)
+        self.assertEqual(config.history_lookback_seconds, 1800)
         self.assertEqual(config.degradation_ratio, 0.7)
         self.assertEqual(config.severe_degradation_ratio, 0.2)
         self.assertEqual(config.consecutive_abnormal_windows, 1)
@@ -342,18 +374,18 @@ class TestPerformanceDiagnostician(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "PERFORMANCE_M": "20",
-                "PERFORMANCE_N": "1.5",
-                "PERFORMANCE_K": "2",
-                "PERFORMANCE_P": "0.8",
-                "PERFORMANCE_Q": "0.1",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_N": "20",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_HISTORY_MINUTES": "1.5",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_K": "2",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_P": "0.8",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_Q": "0.1",
             },
             clear=True,
         ):
             config = PerformanceDiagnosticianConfig.from_env()
 
-        self.assertEqual(config.minimum_window_records, 20)
-        self.assertEqual(config.degradation_window_seconds, 90)
+        self.assertEqual(config.window_steps, 20)
+        self.assertEqual(config.history_lookback_seconds, 90)
         self.assertEqual(config.consecutive_abnormal_windows, 2)
         self.assertEqual(config.degradation_ratio, 0.8)
         self.assertEqual(config.severe_degradation_ratio, 0.1)
@@ -362,24 +394,35 @@ class TestPerformanceDiagnostician(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "PERFORMANCE_M": "invalid",
-                "PERFORMANCE_N": "-1",
-                "PERFORMANCE_K": "0",
-                "PERFORMANCE_P": "1.1",
-                "PERFORMANCE_Q": "invalid",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_N": "invalid",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_HISTORY_MINUTES": "-1",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_K": "0",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_P": "1.1",
+                "DLROVER_DIAGNOSIS_PERFORMANCE_Q": "invalid",
             },
             clear=True,
         ):
             config = PerformanceDiagnosticianConfig.from_env()
 
-        self.assertEqual(config.minimum_window_records, 10)
-        self.assertEqual(config.degradation_window_seconds, 60)
-        self.assertEqual(config.consecutive_abnormal_windows, 1)
-        self.assertEqual(config.degradation_ratio, 0.7)
-        self.assertEqual(config.severe_degradation_ratio, 0.2)
+        self.assertEqual(config, PerformanceDiagnosticianConfig())
 
     def test_config_from_empty_environment_uses_defaults(self):
         with patch.dict(os.environ, {}, clear=True):
+            config = PerformanceDiagnosticianConfig.from_env()
+
+        self.assertEqual(config, PerformanceDiagnosticianConfig())
+
+    def test_unprefixed_performance_environment_is_ignored(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PERFORMANCE_N": "1",
+                "PERFORMANCE_K": "9",
+                "PERFORMANCE_P": "0.1",
+                "PERFORMANCE_Q": "0.1",
+            },
+            clear=True,
+        ):
             config = PerformanceDiagnosticianConfig.from_env()
 
         self.assertEqual(config, PerformanceDiagnosticianConfig())
@@ -484,85 +527,6 @@ class TestPerformanceDiagnostician(unittest.TestCase):
                 training_log,
             )
 
-    def test_severe_degradation_issue(self):
-        diagnostician = PerformanceDiagnostician(
-            PerformanceDiagnosticianConfig(
-                minimum_baseline_records=1,
-                minimum_window_records=2,
-                degradation_window_seconds=0,
-                severe_fraction_threshold=0.3,
-                severe_degradation_ratio=0.2,
-            )
-        )
-        self.assertIsNone(diagnostician.observe(logs=[self._log(1, 1, 1.0)]))
-        observation = diagnostician.observe(
-            logs=[self._log(2, 2, 0.1), self._log(3, 3, 1.0)]
-        )
-        self.assertIsNotNone(observation)
-        assert observation is not None
-        issue = PerformanceIssue.from_json(
-            observation.extra_infos["performance_issue"]
-        )
-        self.assertEqual(issue.metric_value, 0.1)
-        self.assertAlmostEqual(issue.threshold_value, 0.2)
-        self.assertAlmostEqual(issue.degradation_ratio, 0.1)
-
-    def test_severe_window_reuses_duration_and_ratio(self):
-        diagnostician = PerformanceDiagnostician(
-            PerformanceDiagnosticianConfig(
-                minimum_baseline_records=1,
-                minimum_window_records=2,
-                degradation_window_seconds=120,
-                severe_fraction_threshold=1.0,
-                severe_degradation_ratio=0.3,
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[self._log_at("2026-10-15 12:00:00", 1, 1.0)]
-            )
-        )
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[
-                    self._log_at("2026-10-15 12:00:30", 2, 0.25),
-                    self._log_at("2026-10-15 12:01:00", 3, 0.25),
-                ]
-            )
-        )
-        observation = diagnostician.observe(
-            logs=[self._log_at("2026-10-15 12:02:30", 4, 0.25)]
-        )
-        self.assertIsNotNone(observation)
-        assert observation is not None
-        issue = PerformanceIssue.from_json(
-            observation.extra_infos["performance_issue"]
-        )
-        self.assertAlmostEqual(issue.threshold_value, 0.3)
-
-    def test_consecutive_severe_windows_are_required(self):
-        diagnostician = PerformanceDiagnostician(
-            PerformanceDiagnosticianConfig(
-                minimum_baseline_records=1,
-                minimum_window_records=2,
-                degradation_window_seconds=0,
-                degradation_fraction_threshold=1.0,
-                consecutive_abnormal_windows=2,
-                severe_fraction_threshold=0.5,
-            )
-        )
-        self.assertIsNone(diagnostician.observe(logs=[self._log(1, 1, 1.0)]))
-        self.assertIsNone(
-            diagnostician.observe(
-                logs=[self._log(2, 2, 0.1), self._log(3, 3, 1.0)]
-            )
-        )
-        self.assertIsNotNone(
-            diagnostician.observe(
-                logs=[self._log(4, 4, 0.1), self._log(5, 5, 1.0)]
-            )
-        )
-
     def test_absolute_thresholds(self):
         diagnostician = PerformanceDiagnostician(
             PerformanceDiagnosticianConfig(
@@ -573,32 +537,33 @@ class TestPerformanceDiagnostician(unittest.TestCase):
         self.assertEqual(diagnostician._threshold(10.0), 2.0)
         self.assertEqual(diagnostician._severe_threshold(10.0), 0.1)
 
-    def test_empty_windows_and_metadata_only_records(self):
+    def test_empty_and_incomplete_windows(self):
         diagnostician = PerformanceDiagnostician(
-            PerformanceDiagnosticianConfig(
-                minimum_window_records=1,
-                minimum_recovery_records=1,
-            )
+            PerformanceDiagnosticianConfig(window_steps=3)
         )
         self.assertIs(diagnostician.config, diagnostician._config)
         self.assertIs(diagnostician.history, diagnostician._history)
-        record = PerformanceRecord(
-            timestamp=10,
-            metrics={"other": 1.0},
-        )
-        diagnostician.history.add(
-            PerformanceRecord(
-                timestamp=10,
-                metrics={THROUGHPUT_METRIC: 1.0},
+        self.assertEqual(diagnostician.window_history, [])
+        self.assertIsNone(diagnostician.observe(logs=[]))
+        self.assertIsNone(
+            diagnostician.observe(
+                logs=[
+                    self._log(1, 1, 1.0),
+                    self._log(1, 2, 1.0),
+                ]
             )
         )
-        self.assertIsNone(diagnostician._evaluate_record(record))
-        self.assertFalse(
-            diagnostician._detect_sustained_degradation(None, 10)[0]
-        )
-        self.assertFalse(diagnostician._detect_severe_degradation(None, 10)[0])
         self.assertFalse(diagnostician._is_recovered(None, 10))
-        self.assertIsNone(diagnostician.observe(logs=[]))
+        window = PerformanceWindow(
+            index=0,
+            start_iteration=1,
+            end_iteration=3,
+            start_timestamp=1,
+            end_timestamp=2,
+            sample_count=3,
+            median_throughput=1.0,
+        )
+        self.assertIsNone(diagnostician._find_historical_window(window, None))
 
     def test_resolve_rejects_invalid_observations(self):
         diagnostician = self._diagnostician()
