@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: brain-opt-config
+  namespace: dlrover
+data:
+  config.json: |
+    {
+      "opt_config": {
+        "incremental_memory_factor": 2,
+        "incremental_gpus_factor": 1,
+        "reduction_gpus_factor": 1,
+        "optimize_add_gpus_utilization_threshold": 10,
+        "optimize_reduce_gpus_utilization_threshold": 5,
+        "trigger_resource_elastic_time_window": 600,
+        "min_samples_in_window": 30,
+        "max_buffer_size": 200,
+        "vertical_elastic_scale_interval": 180,
+        "vertical_elastic_opt_interval": 36000,
+        "vertical_elastic_max_opt_num": 2,
+        "ckpt_save_status_check_max_wait_time": 120,
+        "ckpt_save_status_check_interval": 1,
+        "log_interval_check_nums": 5
+      }
+    }

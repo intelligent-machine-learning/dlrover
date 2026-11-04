@@ -144,6 +144,18 @@ def _build_master_args_parser():
         help="The port of the DLRover dashboard.",
     )
     parser.add_argument(
+        "--elastic_dimension",
+        default="horizontal",
+        type=str,
+        help="The type of elastic, should be 'horizontal' or 'vertical'",
+    )
+    parser.add_argument(
+        "--configmap_manual_scale_switch",
+        default="off",
+        type=str,
+        help="The configmap manual scale switch, should be 'on' or 'off'",
+    )
+    parser.add_argument(
         "--group-affinity",
         "--group_affinity",
         default=None,
@@ -260,6 +272,7 @@ def _build_master_args_parser():
         "group labels). Only the world ORDER changes (node_rank "
         "values stay the stable pod identity).",
     )
+    
     return parser
 
 

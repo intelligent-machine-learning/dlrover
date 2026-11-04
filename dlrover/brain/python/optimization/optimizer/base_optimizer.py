@@ -19,6 +19,7 @@ from dlrover.brain.python.common.job import (
     JobResource,
     NodeGroupResource,
     NodeResource,
+    OptimizeConfig,
 )
 from dlrover.brain.python.common.constants import (
     Node,
@@ -34,7 +35,7 @@ class BaseOptimizer:
     def get_name() -> str:
         return "BaseOptimizer"
 
-    def optimize(self, job: JobMeta) -> JobOptimizePlan:
+    def optimize(self, job: JobMeta, conf: OptimizeConfig) -> JobOptimizePlan:
         return JobOptimizePlan(
             timestamp=int(time.time() * 1000),
             job_resource=JobResource(

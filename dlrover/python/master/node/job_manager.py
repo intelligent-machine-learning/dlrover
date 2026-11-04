@@ -12,7 +12,7 @@
 # limitations under the License.
 
 from abc import ABCMeta, abstractmethod
-from typing import Dict
+from typing import Dict, Optional
 
 from dlrover.python.common.constants import TrainingExceptionLevel
 from dlrover.python.common.event.reporter import get_event_reporter
@@ -148,6 +148,26 @@ class JobManager(metaclass=ABCMeta):
 
     @abstractmethod
     def start_auto_scaling(self):
+        pass
+
+    @abstractmethod
+    def start_resource_scaling(self, scale_action):
+        pass
+
+    @abstractmethod
+    def get_gpus_from_brain_resource_plan(self):
+        pass
+
+    @abstractmethod
+    def set_save_ckpt_status(self, save_ckpt_ready: bool, reason: Optional[str] = None):
+        pass
+
+    @abstractmethod
+    def exec_opt_res_plan_ready(self):
+        pass
+    
+    @abstractmethod
+    def set_param_tunning_ready(self, param_tunning_ready: bool):
         pass
 
     @abstractmethod
