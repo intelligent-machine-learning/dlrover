@@ -93,7 +93,7 @@ class ConfigMapReader:
             logger.error(f"Failed to read ConfigMap {self.name}: {e}")
             return None
 
-    def read_json_Data(self):
+    def read_json_data(self):
 
         try:
             configmap = self.v1.read_namespaced_config_map(self.name, self.namespace)
@@ -123,7 +123,7 @@ class ConfigMapReader:
     def get_opt_config(self):
         try:
             configmap_reader = ConfigMapReader(self.namespace, "brain-config")
-            data = configmap_reader.read_json_Data()
+            data = configmap_reader.read_json_data()
             if not isinstance(data, dict):
                 return {}
             result = data.get("opt_config", {})
