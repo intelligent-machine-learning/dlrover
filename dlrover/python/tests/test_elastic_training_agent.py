@@ -50,6 +50,7 @@ from dlrover.python.common.constants import (
     GpuMetricEnum,
     JobConstant,
     NodeEnv,
+    NodeType,
     NpuMetricEnum,
     RendezvousName,
     RendezvousErrorType,
@@ -1476,8 +1477,26 @@ class ElasticTrainingAgentRunTest(unittest.TestCase):
         )
         agent._stop_workers = mock.MagicMock(return_value=True)
         agent._restart_workers = mock.MagicMock(return_value=True)
+        execute_diagnosis_action = agent._diagnosis_action_executor.execute
+        agent._diagnosis_action_executor.execute = mock.MagicMock(
+            return_value=True
+        )
 
         context = get_agent_context()
+
+        profiling_action = NodeAction(
+            node_id=env_utils.get_node_id(),
+            node_type=NodeType.WORKER,
+            instance=env_utils.get_node_id(),
+            action_type=DiagnosisActionType.ENABLE_PROFILING,
+            action_id="profiling-action-1",
+            parameters={"duration_seconds": "180"},
+        )
+        agent._process_diagnosis_action(profiling_action)
+        agent._diagnosis_action_executor.execute.assert_called_once_with(
+            profiling_action
+        )
+        agent._diagnosis_action_executor.execute = execute_diagnosis_action
 
         action = EventAction(
             event_action="action",

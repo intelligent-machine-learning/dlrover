@@ -168,7 +168,9 @@ class DistributedJobMaster(JobMaster):
                 self.rdzv_managers[
                     RendezvousName.TRAINING
                 ].set_expected_local_world_size(expected_ranks)
-        self.diagnosis_manager = DiagnosisMaster(args)
+        self.diagnosis_manager = DiagnosisMaster(
+            args, rdzv_managers=self.rdzv_managers
+        )
         self._event_reporter = get_event_reporter()
         self.job_metric_collector = self._create_metric_collector_if_needed(
             args

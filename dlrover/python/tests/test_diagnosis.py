@@ -212,6 +212,19 @@ class DiagnosisTest(unittest.TestCase):
         )
         self.assertEqual(action.event_msg, "msg1")
 
+    def test_node_action_queue_deduplicates_action_id(self):
+        action_queue = DiagnosisActionQueue()
+        action = NodeAction(
+            node_id=1,
+            node_type=NodeType.WORKER,
+            instance=1,
+            action_type=DiagnosisActionType.ENABLE_PROFILING,
+            action_id="action-1",
+        )
+        self.assertTrue(action_queue.add_action(action))
+        self.assertTrue(action_queue.add_action(action))
+        self.assertEqual(action_queue.len(), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

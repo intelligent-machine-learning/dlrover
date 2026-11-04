@@ -72,7 +72,15 @@ class TestDiagnosisAgent(unittest.TestCase):
 
         agent = DiagnosisAgent.singleton_instance()
         agent.reset_atorch_collector()
-        agent.update_config(file_path, errors)
+        agent.update_config(
+            file_path,
+            errors,
+            run_id="test-run",
+            rdzv_epoch=3,
+        )
+        diagnosis_inputs = agent.get_diagnosis_inputs()
+        self.assertEqual(diagnosis_inputs["run_id"], "test-run")
+        self.assertEqual(diagnosis_inputs["rdzv_epoch"], 3)
 
         spec = _create_worker_spec(
             node_rank=0,

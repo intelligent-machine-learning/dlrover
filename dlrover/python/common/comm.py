@@ -519,6 +519,9 @@ class DiagnosisReportData(Message):
     data_cls: str = ""
     data_content: str = ""
     node_rank: int = -1
+    report_id: str = ""
+    data_type: str = ""
+    schema_version: int = 1
 
 
 @dataclass

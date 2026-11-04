@@ -23,6 +23,7 @@ from dlrover.python.diagnosis.common.constants import (
     DiagnosticianType,
 )
 from dlrover.python.diagnosis.common.diagnosis_action import (
+    EventAction,
     NoAction,
 )
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
@@ -106,6 +107,15 @@ class DiagnosisManagerTest(unittest.TestCase):
         thread_name = f"periodical_collector_{collector.__class__.__name__}"
         thread_names = [t.name for t in threading.enumerate()]
         self.assertIn(thread_name, thread_names, f"Not found {thread_name}")
+
+    def test_enqueue_diagnosis_actions(self):
+        context = MagicMock()
+        mgr = DiagnosisManager(context)
+        action = EventAction(event_msg="test")
+
+        mgr.enqueue_diagnosis_actions([NoAction(), action])
+
+        context.enqueue_diagnosis_action.assert_called_once_with(action)
 
     def test_diagnosis_mgr_exception(self):
         context = get_agent_context()

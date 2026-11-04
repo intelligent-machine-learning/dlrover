@@ -139,6 +139,11 @@ class DiagnosisManager:
         """Should be implemented by subclasses."""
         return {}
 
+    def enqueue_diagnosis_actions(self, actions: List[DiagnosisAction]):
+        for action in actions:
+            if not isinstance(action, NoAction):
+                self._context.enqueue_diagnosis_action(action)
+
     def _start_periodical_diagnosticians(self, name):
         if name not in self._diagnosticians:
             logger.warning(
@@ -160,9 +165,7 @@ class DiagnosisManager:
             time.sleep(time_interval)
             try:
                 actions = diagnostician.diagnose(**self.get_diagnosis_inputs())
-                for action in actions:
-                    if not isinstance(action, NoAction):
-                        self._context.enqueue_diagnosis_action(action)
+                self.enqueue_diagnosis_actions(actions)
             except Exception as e:
                 logger.error(f"Fail to diagnose {name}: {e}")
 
@@ -183,9 +186,7 @@ class DiagnosisManager:
                     DiagnosticianType.RESOURCE_COLLECT_FAILURE,
                     error_log=f"{e}",
                 )
-                for action in actions:
-                    if not isinstance(action, NoAction):
-                        self._context.enqueue_diagnosis_action(action)
+                self.enqueue_diagnosis_actions(actions)
 
     def observe(self, name: str, **kwargs) -> DiagnosisObservation:
         diagnostician = self._diagnosticians.get(name, None)

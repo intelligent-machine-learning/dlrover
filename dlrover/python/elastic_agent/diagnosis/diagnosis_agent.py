@@ -55,6 +55,10 @@ from dlrover.python.diagnosis.diagnostician.node_failure import (
 from dlrover.python.diagnosis.diagnostician.resource_collect_failure import (
     ResourceCollectionFailureDiagnostician,
 )
+from dlrover.python.diagnosis.diagnostician.performance import (
+    PerformanceDiagnostician,
+    PerformanceDiagnosticianConfig,
+)
 from dlrover.python.elastic_agent.context import get_agent_context
 from dlrover.python.elastic_agent.master_client import MasterClient
 from dlrover.python.elastic_agent.torch.dynamic_failover import (
@@ -78,6 +82,9 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         self._training_log_file = training_log_file
         self._errors = errors
         self._stopped = False
+        self._run_id = env_utils.get_env("TORCHELASTIC_RUN_ID") or ""
+        self._rdzv_epoch = 0
+        self._config_fingerprint = ""
         self._agent_context = get_agent_context()
         self._extension: DynamicAgentFailoverExtension = (
             dynamic_failover_extension
@@ -93,6 +100,13 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
             DiagnosisErrorConstant.GPU_LOST,
             ResourceCollectionFailureDiagnostician(),
             30,
+        )
+        self.register_diagnostician(
+            DiagnosticianType.PERFORMANCE,
+            PerformanceDiagnostician(
+                PerformanceDiagnosticianConfig.from_env()
+            ),
+            60,
         )
 
         # register periodical data collector
@@ -118,7 +132,13 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         self._atorch_collector.reset_first_step()
 
     def update_config(
-        self, training_log_file: str = "", errors: str = "", rank: int = -1
+        self,
+        training_log_file: str = "",
+        errors: str = "",
+        rank: int = -1,
+        run_id: str = "",
+        rdzv_epoch: int = -1,
+        config_fingerprint: str = "",
     ):
         if len(training_log_file) > 0:
             self._training_log_file = training_log_file
@@ -129,6 +149,24 @@ class DiagnosisAgent(Singleton, DiagnosisManager):
         if rank >= 0:
             self._node_rank = rank
             logger.info(f"Update rank: {rank}")
+        if run_id:
+            self._run_id = run_id
+        if rdzv_epoch >= 0:
+            self._rdzv_epoch = rdzv_epoch
+            logger.info(f"Update rendezvous epoch: {rdzv_epoch}")
+        if config_fingerprint:
+            self._config_fingerprint = config_fingerprint
+
+    def get_diagnosis_inputs(self):
+        return {
+            "log_file": self._training_log_file,
+            "node_rank": self._node_rank,
+            "node_id": env_utils.get_node_id(),
+            "job_uid": env_utils.get_job_uid(),
+            "run_id": self._run_id,
+            "rdzv_epoch": self._rdzv_epoch,
+            "config_fingerprint": self._config_fingerprint,
+        }
 
     def start(self):
         self.start_diagnosis()

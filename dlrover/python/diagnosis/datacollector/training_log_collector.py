@@ -13,6 +13,7 @@
 
 from dlrover.python.diagnosis.common.diagnosis_data import TrainingLog
 from dlrover.python.diagnosis.datacollector.data_collector import DataCollector
+from dlrover.python.common.log import default_logger as logger
 from dlrover.python.util.file_util import read_last_n_lines
 
 
@@ -29,19 +30,28 @@ class TrainingLogCollector(DataCollector):
 
     def collect_data(self) -> TrainingLog:
         if len(self._log_file) == 0:
+            logger.info(
+                "[PERF-DIAG][collector] Read 0 lines from log file: <empty>."
+            )
             return TrainingLog()
         byte_logs = read_last_n_lines(self._log_file, self._n_line)
         logs = [str(line) for line in byte_logs]
+        raw_log_count = len(logs)
+        training_start_line = 0
         # only collect training logs
         if len(logs) > 0:
-            training_start_line = 0
             start_str = "DLRover agent started with:"
-            for i in range(len(logs)):
+            for i in range(len(logs) - 1, -1, -1):
                 if start_str in logs[i]:
                     training_start_line = i
                     break
             logs = logs[training_start_line:]
         training_log = TrainingLog(logs=logs)
+        logger.info(
+            "[PERF-DIAG][collector] Read %d lines from log file %s.",
+            raw_log_count,
+            self._log_file,
+        )
         return training_log
 
     def is_enabled(self) -> bool:

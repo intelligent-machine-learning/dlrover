@@ -207,6 +207,13 @@ class NodeAction(DiagnosisAction):
         action_type=DiagnosisActionType.NONE,
         timestamp=0,
         expired_time_period=0,
+        action_id: str = "",
+        action_group_id: str = "",
+        diagnosis_id: str = "",
+        job_uid: str = "",
+        run_id: str = "",
+        rdzv_epoch: int = 0,
+        parameters: Optional[Dict[str, str]] = None,
         **kwargs,
     ):
         super().__init__(
@@ -219,6 +226,13 @@ class NodeAction(DiagnosisAction):
         self._node_type = node_type
         self._node_status = node_status
         self._reason = reason
+        self._action_id = action_id
+        self._action_group_id = action_group_id
+        self._diagnosis_id = diagnosis_id
+        self._job_uid = job_uid
+        self._run_id = run_id
+        self._rdzv_epoch = rdzv_epoch
+        self._parameters = parameters or {}
 
     @property
     def node_id(self):
@@ -236,6 +250,34 @@ class NodeAction(DiagnosisAction):
     def reason(self):
         return self._reason
 
+    @property
+    def action_id(self):
+        return self._action_id
+
+    @property
+    def action_group_id(self):
+        return self._action_group_id
+
+    @property
+    def diagnosis_id(self):
+        return self._diagnosis_id
+
+    @property
+    def job_uid(self):
+        return self._job_uid
+
+    @property
+    def run_id(self):
+        return self._run_id
+
+    @property
+    def rdzv_epoch(self):
+        return self._rdzv_epoch
+
+    @property
+    def parameters(self):
+        return self._parameters
+
     def __repr__(self):
         return (
             f"action_type:{self._action_type};"
@@ -245,6 +287,86 @@ class NodeAction(DiagnosisAction):
             f"node_id:{self._node_id};"
             f"node_type:{self._node_type};"
             f"node_status:{self._node_status};"
+            f"action_id:{self._action_id};"
+            f"action_group_id:{self._action_group_id};"
+            f"diagnosis_id:{self._diagnosis_id};"
+            f"rdzv_epoch:{self._rdzv_epoch};"
+            f"reason:{self._reason}"
+        )
+
+
+class ReportDiagnosisDataAction(DiagnosisAction):
+    """Report serialized diagnosis data from a worker to the master."""
+
+    def __init__(
+        self,
+        data_cls: str = "",
+        data_content: str = "",
+        node_rank: int = -1,
+        reason: str = "",
+        instance=DiagnosisConstant.LOCAL_INSTANCE,
+        timestamp=0,
+        expired_time_period=0,
+        executable_time_period=0,
+        report_id: str = "",
+        data_type: str = "",
+        schema_version: int = 1,
+        **kwargs,
+    ):
+        super().__init__(
+            action_type=DiagnosisActionType.REPORT_DIAGNOSIS_DATA,
+            instance=instance,
+            timestamp=timestamp,
+            expired_time_period=expired_time_period,
+            executable_time_period=executable_time_period,
+        )
+        self._data_cls = data_cls
+        self._data_content = data_content
+        self._node_rank = node_rank
+        self._reason = reason
+        self._report_id = report_id
+        self._data_type = data_type
+        self._schema_version = schema_version
+
+    @property
+    def data_cls(self):
+        return self._data_cls
+
+    @property
+    def data_content(self):
+        return self._data_content
+
+    @property
+    def node_rank(self):
+        return self._node_rank
+
+    @property
+    def reason(self):
+        return self._reason
+
+    @property
+    def report_id(self):
+        return self._report_id
+
+    @property
+    def data_type(self):
+        return self._data_type
+
+    @property
+    def schema_version(self):
+        return self._schema_version
+
+    def __repr__(self):
+        return (
+            f"action_type:{self._action_type};"
+            f"instance:{self._instance};"
+            f"timestamp:{self._timestamp};"
+            f"expired_time_period:{self._expired_time_period};"
+            f"data_cls:{self._data_cls};"
+            f"node_rank:{self._node_rank};"
+            f"report_id:{self._report_id};"
+            f"data_type:{self._data_type};"
+            f"schema_version:{self._schema_version};"
             f"reason:{self._reason}"
         )
 
@@ -314,6 +436,10 @@ class JobRestartAction(JobAction):
 
 
 def is_same_action(action1: DiagnosisAction, action2: DiagnosisAction) -> bool:
+    if isinstance(action1, NodeAction) and isinstance(action2, NodeAction):
+        return bool(action1.action_id) and (
+            action1.action_id == action2.action_id
+        )
     if isinstance(action1, EventAction) and isinstance(action2, EventAction):
         action1.__class__ = EventAction
         action2.__class__ = EventAction
@@ -334,7 +460,9 @@ class DiagnosisActionQueue:
         self._actions: Dict[int, deque[DiagnosisAction]] = {}
         self._lock = threading.Lock()
 
-    def add_action(self, new_action: DiagnosisAction):
+    def add_action(self, new_action: DiagnosisAction) -> bool:
+        if not new_action or not new_action.is_needed():
+            return False
         with self._lock:
             instance = new_action.instance
             if instance not in self._actions:
@@ -343,16 +471,33 @@ class DiagnosisActionQueue:
                 )
             actions = self._actions[instance]
             try:
+                active_actions: Deque[DiagnosisAction] = deque(
+                    maxlen=DiagnosisConstant.MAX_ACTION_QUEUE_SIZE
+                )
+                duplicate = False
                 for action in actions:
-                    if (
-                        is_same_action(new_action, action)
-                        or not action.is_needed()
-                    ):
-                        return
+                    if not action.is_needed():
+                        continue
+                    if is_same_action(new_action, action):
+                        duplicate = True
+                    active_actions.append(action)
+                actions.clear()
+                actions.extend(active_actions)
+                if duplicate:
+                    return True
+                was_full = (
+                    len(actions) == DiagnosisConstant.MAX_ACTION_QUEUE_SIZE
+                )
                 actions.append(new_action)
+                if was_full:
+                    logger.warning(
+                        f"Diagnosis action queue for {instance} was full."
+                    )
                 logger.info(f"New diagnosis action {new_action}")
+                return True
             except Exception as e:
                 logger.warning(f"Add action errors: {e}.")
+                return False
 
     def clear(self):
         with self._lock:

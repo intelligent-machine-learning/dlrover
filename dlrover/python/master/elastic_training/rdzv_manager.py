@@ -120,6 +120,15 @@ class RendezvousManager(metaclass=ABCMeta):
     def get_rdzv_round(self):
         return self._rdzv_round
 
+    def get_rdzv_snapshot(self) -> Tuple[int, List[Tuple[int, int]]]:
+        """Return a read-only snapshot of the current rendezvous world."""
+        with self._lock:
+            nodes = [
+                (meta.node_id, meta.node_rank)
+                for meta in self._rdzv_nodes.values()
+            ]
+            return self._rdzv_round, nodes
+
     def set_rdzv_blocked(self, blocked: bool, reason: Optional[str] = None):
         with self._lock:
             self._rdzv_blocked = blocked

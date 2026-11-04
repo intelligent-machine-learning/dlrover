@@ -264,6 +264,12 @@ class TopologyRerankRdzvManagerTest(unittest.TestCase):
         rdzv_round, _, world = manager.get_comm_world(0)
         self.assertEqual(rdzv_round, 1)
         self.assertListEqual(list(world.keys()), [0, 1, 2, 3])
+        snapshot_round, snapshot_nodes = manager.get_rdzv_snapshot()
+        self.assertEqual(snapshot_round, rdzv_round)
+        self.assertEqual(
+            snapshot_nodes,
+            [(meta.node_id, meta.node_rank) for meta in world.values()],
+        )
 
 
 class ElasticTrainingRendezvousManagerTest(unittest.TestCase):

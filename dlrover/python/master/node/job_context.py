@@ -106,10 +106,10 @@ class JobContext(Singleton):
         for action in actions:
             self.enqueue_diagnosis_action(action)
 
-    def enqueue_diagnosis_action(self, action):
+    def enqueue_diagnosis_action(self, action) -> bool:
         if not action or action.action_type == DiagnosisActionType.NONE:
-            return
-        self._action_queue.add_action(action)
+            return False
+        return self._action_queue.add_action(action)
 
     def next_action(
         self,

@@ -69,9 +69,37 @@ class TestDiagnosisDataCollector(unittest.TestCase):
             log_file="test", n_line=3
         )
         self.assertTrue(training_log_collector.is_enabled())
-        result = training_log_collector.collect_data()
+        with self.assertLogs("dlrover.logger", level="INFO") as captured:
+            result = training_log_collector.collect_data()
         self.assertTrue("test0" not in result.logs)
         self.assertTrue("test1" in result.logs)
+        output = "\n".join(captured.output)
+        self.assertIn(
+            "[PERF-DIAG][collector] Read 3 lines from log file test.",
+            output,
+        )
+
+    @patch(
+        "dlrover.python.diagnosis.datacollector.training_log_collector"
+        ".read_last_n_lines"
+    )
+    def test_training_log_collector_uses_latest_agent_start(self, mock_file):
+        mock_file.return_value = [
+            b"old training",
+            b"DLRover agent started with: old",
+            b"old result",
+            b"DLRover agent started with: latest",
+            b"new result",
+        ]
+        collector = TrainingLogCollector(log_file="test", n_line=5)
+        result = collector.collect_data()
+        self.assertEqual(
+            result.logs,
+            [
+                "b'DLRover agent started with: latest'",
+                "b'new result'",
+            ],
+        )
 
     def test_xpu_timer_metric_collector(self):
         collector = XpuTimerMetricsCollector()

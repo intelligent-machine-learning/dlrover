@@ -50,9 +50,18 @@ from dlrover.python.diagnosis.common.diagnosis_action import (
     JobRestartAction,
     JobAbortionAction,
 )
-from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
+from dlrover.python.diagnosis.common.constants import DiagnosisDataType
+from dlrover.python.diagnosis.common.diagnosis_data import (
+    DIAGNOSIS_DATA_SCHEMA_VERSION,
+    DiagnosisData,
+    PerformanceDiagnosisData,
+)
 from dlrover.python.common.urgent_save import register_master_kv_store
 from dlrover.python.master.diagnosis.diagnosis_master import DiagnosisMaster
+from dlrover.python.master.diagnosis.diagnosis_data_manager import (
+    STORE_ACCEPTED,
+    STORE_DUPLICATE,
+)
 from dlrover.python.master.elastic_training.kv_store_service import (
     KVStoreService,
 )
@@ -471,7 +480,9 @@ class MasterServicer(ABC):
         elif isinstance(message, comm.NodeCheckpointState):
             success = self._sync_checkpoint(node_type, node_id, message)
         elif isinstance(message, comm.DiagnosisReportData):
-            success = self._report_node_diagnosis_data(message)
+            success = self._report_node_diagnosis_data(
+                message, node_type, node_id
+            )
         elif isinstance(message, comm.Event):
             success = self._report_event(message)
         elif isinstance(message, comm.RdzvBlocked):
@@ -769,19 +780,122 @@ class MasterServicer(ABC):
         rdzv_manager = self._rdzv_managers[RendezvousName.TRAINING]
         return rdzv_manager.sync_ckpt_nodes(node_id, message.step)
 
-    def _report_node_diagnosis_data(self, message: comm.DiagnosisReportData):
-        if self._diagnosis_manager:
-            data_cls: Optional[DiagnosisData] = getattr(
-                self._diagnosis_data_module,
-                message.data_cls,
+    def _report_node_diagnosis_data(
+        self,
+        message: comm.DiagnosisReportData,
+        node_type: Optional[str] = None,
+        node_id: Optional[int] = None,
+    ):
+        if self._diagnosis_manager is None:
+            return False
+        if (
+            not isinstance(message.data_content, str)
+            or not message.data_content
+        ):
+            return False
+        max_report_size = self._diagnosis_manager.data_manager.max_report_size
+        if len(message.data_content.encode("utf-8")) > max_report_size:
+            logger.warning("Reject oversized diagnosis data report.")
+            return False
+
+        data_cls = getattr(
+            self._diagnosis_data_module,
+            message.data_cls,
+            None,
+        )
+        if not isinstance(data_cls, type) or not issubclass(
+            data_cls, DiagnosisData
+        ):
+            logger.warning(
+                f"Invalid diagnosis report data type: {message.data_cls}"
             )
-            if data_cls is None:
-                logger.warning(
-                    f"Invalid diagnosis report data type: {message.data_cls}"
-                )
-                return False
+            return False
+
+        try:
             data_obj = data_cls.from_json(message.data_content)
-            self._diagnosis_manager.collect_diagnosis_data(data_obj)
+        except (
+            TypeError,
+            ValueError,
+            KeyError,
+            AttributeError,
+        ):
+            logger.warning(
+                f"Invalid diagnosis report payload: {message.data_cls}"
+            )
+            return False
+
+        if message.data_type and message.data_type != data_obj.data_type:
+            logger.warning("Diagnosis report data type mismatch.")
+            return False
+        if (
+            message.schema_version != DIAGNOSIS_DATA_SCHEMA_VERSION
+            or data_obj.schema_version != DIAGNOSIS_DATA_SCHEMA_VERSION
+            or message.schema_version != data_obj.schema_version
+        ):
+            logger.warning("Unsupported diagnosis report schema version.")
+            return False
+
+        if message.report_id:
+            if data_obj.report_id and data_obj.report_id != message.report_id:
+                logger.warning("Diagnosis report ID mismatch.")
+                return False
+            if not data_obj.report_id:
+                data_obj.set_report_identity(
+                    message.report_id, message.schema_version
+                )
+
+        is_performance_report = (
+            data_obj.data_type == DiagnosisDataType.PERFORMANCE_ISSUE
+        )
+        if is_performance_report and not isinstance(
+            data_obj, PerformanceDiagnosisData
+        ):
+            logger.warning("Performance report has an invalid data class.")
+            return False
+        if isinstance(data_obj, PerformanceDiagnosisData) and (
+            not is_performance_report
+        ):
+            logger.warning("Performance data has an invalid data type.")
+            return False
+        if is_performance_report:
+            if not data_obj.report_id:
+                logger.warning("Performance report has no report ID.")
+                return False
+            job_uid = getattr(data_obj, "job_uid", "")
+            job_args = self._diagnosis_manager.job_args
+            if job_args is not None and job_uid != job_args.job_uuid:
+                logger.warning("Performance report has an invalid job UID.")
+                return False
+
+        node_rank = message.node_rank
+        if node_type and node_id is not None and node_id >= 0:
+            node = _job_ctx.job_node(node_type, node_id)
+            if node is None:
+                if is_performance_report:
+                    logger.warning(
+                        f"Performance report source is not a job node: "
+                        f"{node_type}-{node_id}."
+                    )
+                    return False
+                data_obj.bind_source(node_id, node_type, node_rank)
+            else:
+                node_rank = node.rank_index
+                data_obj.bind_source(node.id, node.type, node_rank)
+        elif is_performance_report:
+            logger.warning("Performance report has no RPC source node.")
+            return False
+
+        result = self._diagnosis_manager.collect_diagnosis_data(
+            data_obj,
+            node_id=node_id,
+            node_type=node_type,
+            node_rank=node_rank,
+        )
+        if result not in (STORE_ACCEPTED, STORE_DUPLICATE):
+            logger.warning(
+                f"Reject diagnosis data report {data_obj.report_id}: {result}."
+            )
+            return False
         return True
 
     def _sync_training_ports(

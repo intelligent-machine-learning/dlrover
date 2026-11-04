@@ -13,11 +13,12 @@
 
 import threading
 import time
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from dlrover.python.common.constants import (
     EventReportConstants,
     PreCheckStatus,
+    RendezvousName,
 )
 from dlrover.python.common.event.context import JobEventContext
 from dlrover.python.common.event.reporter import get_event_reporter
@@ -25,8 +26,11 @@ from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.metric.context import JobMetricContext
 from dlrover.python.diagnosis.common.constants import (
+    DiagnosisActionType,
+    DiagnosisConstant,
     DiagnosticianType,
 )
+from dlrover.python.diagnosis.common.diagnosis_action import DiagnosisAction
 from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.diagnosis.common.diagnosis_manager import DiagnosisManager
 from dlrover.python.diagnosis.diagnostician.node_inconsistency import (
@@ -38,6 +42,9 @@ from dlrover.python.diagnosis.diagnostician.training_hang import (
 from dlrover.python.master.diagnosis.diagnosis import Diagnostician
 from dlrover.python.master.diagnosis.diagnosis_data_manager import (
     DiagnosisDataManager,
+)
+from dlrover.python.master.diagnosis.diagnostician.performance import (
+    JobPerformanceDiagnostician,
 )
 from dlrover.python.master.node.job_context import get_job_context
 from dlrover.python.scheduler.job import JobArgs
@@ -59,21 +66,106 @@ class DiagnosisMaster(DiagnosisManager):
     DiagnosisMaster is used to manage all diagnosis issues in a training job.
     """
 
-    def __init__(self, job_args: Optional[JobArgs] = None):
+    def __init__(
+        self,
+        job_args: Optional[JobArgs] = None,
+        rdzv_managers=None,
+        action_intervals: Optional[Dict[str, int]] = None,
+    ):
         self._is_observing_started = False
         self._is_observing_paused = False
-        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(600)
+        self._data_manager: DiagnosisDataManager = DiagnosisDataManager(
+            expire_time_period=1800,
+            max_records_per_type=4096,
+            max_total_bytes=16 * 1024 * 1024,
+        )
         self._diagnostician: Diagnostician = Diagnostician(self._data_manager)
         self._job_context = get_job_context()
         self._job_args = job_args
+        self._rdzv_managers = rdzv_managers or {}
         self._reporter = get_event_reporter()
         self._metric_monitor = None
         self._lock = threading.Lock()
+        if action_intervals is None:
+            action_intervals = {
+                DiagnosisActionType.ENABLE_PROFILING: (
+                    DiagnosisConstant.PROFILING_ACTION_INTERVAL_SECS
+                )
+            }
+        self._action_intervals: Dict[str, int] = {}
+        for action_type, interval in action_intervals.items():
+            try:
+                interval_seconds = int(interval)
+            except (TypeError, ValueError):
+                logger.warning(
+                    f"Invalid action interval {interval} for "
+                    f"{action_type}; rate limiting is disabled."
+                )
+                continue
+            if interval_seconds > 0:
+                self._action_intervals[action_type] = interval_seconds
+        self._last_action_issued_at: Dict[str, float] = {}
+        self._action_gate_lock = threading.Lock()
 
         super().__init__(self._job_context)
 
-    def collect_diagnosis_data(self, data: DiagnosisData):
-        self._data_manager.store_data(data)
+    @property
+    def data_manager(self):
+        return self._data_manager
+
+    @property
+    def job_args(self):
+        return self._job_args
+
+    @property
+    def rdzv_managers(self):
+        return self._rdzv_managers
+
+    def collect_diagnosis_data(
+        self,
+        data: DiagnosisData,
+        node_id=None,
+        node_type=None,
+        node_rank=None,
+    ):
+        return self._data_manager.store_data(
+            data,
+            node_id=node_id,
+            node_type=node_type,
+            node_rank=node_rank,
+        )
+
+    def enqueue_diagnosis_actions(self, actions: List[DiagnosisAction]):
+        grouped_actions: Dict[str, List[DiagnosisAction]] = {}
+        for action in actions:
+            if not action or action.action_type == DiagnosisActionType.NONE:
+                continue
+            grouped_actions.setdefault(action.action_type, []).append(action)
+
+        with self._action_gate_lock:
+            now = time.monotonic()
+            for action_type, typed_actions in grouped_actions.items():
+                interval = self._action_intervals.get(action_type, 0)
+                last_issued_at = self._last_action_issued_at.get(action_type)
+                if (
+                    interval > 0
+                    and last_issued_at is not None
+                    and now - last_issued_at < interval
+                ):
+                    remaining = interval - (now - last_issued_at)
+                    logger.info(
+                        f"Ignore diagnosis action type {action_type}: "
+                        f"rate-limit window has {remaining:.1f}s remaining."
+                    )
+                    continue
+
+                all_accepted = True
+                for action in typed_actions:
+                    accepted = self._context.enqueue_diagnosis_action(action)
+                    if not accepted:
+                        all_accepted = False
+                if interval > 0 and all_accepted:
+                    self._last_action_issued_at[action_type] = now
 
     def _report_event(self, event_type, instance, action, msg="", labels=None):
         if labels is None:
@@ -293,7 +385,19 @@ class DiagnosisMaster(DiagnosisManager):
             self._is_observing_paused = False
 
     def get_diagnosis_inputs(self) -> Dict[str, Any]:
-        return {"job_nodes": self._job_context.job_nodes()}
+        rdzv_epoch = None
+        rdzv_node_ids = None
+        rdzv_manager = self._rdzv_managers.get(RendezvousName.TRAINING)
+        if rdzv_manager is not None:
+            rdzv_epoch, rdzv_nodes = rdzv_manager.get_rdzv_snapshot()
+            rdzv_node_ids = [node_id for node_id, _ in rdzv_nodes]
+        return {
+            "job_nodes": self._job_context.dup_job_nodes(),
+            "job_uid": (self._job_args.job_uuid if self._job_args else ""),
+            "rdzv_epoch": rdzv_epoch,
+            "rdzv_node_ids": rdzv_node_ids,
+            "observing_paused": self._is_observing_paused,
+        }
 
     def _register_diagnosticians(self):
         self.register_diagnostician(
@@ -306,6 +410,12 @@ class DiagnosisMaster(DiagnosisManager):
             DiagnosticianType.TRAINING_HANG,
             TrainingHangDiagnostician(self._job_args, self._data_manager),
             60 * 1,
+        )
+
+        self.register_diagnostician(
+            DiagnosticianType.PERFORMANCE,
+            JobPerformanceDiagnostician(self._data_manager, self._job_args),
+            60,
         )
 
     def start_observing(self):

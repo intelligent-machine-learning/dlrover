@@ -14,6 +14,15 @@
 
 class EnvConfigKey(object):
     XPU_TIMER_PORT = "XPU_TIMER_PORT"
+    XPU_TIMER_CONTROL_PORT = "XPU_TIMER_CONTROL_PORT"
+    XPU_TIMER_CONTROL_URL = "XPU_TIMER_CONTROL_URL"
+    DLROVER_DIAGNOSIS_PERFORMANCE_N = "DLROVER_DIAGNOSIS_PERFORMANCE_N"
+    DLROVER_DIAGNOSIS_PERFORMANCE_HISTORY_MINUTES = (
+        "DLROVER_DIAGNOSIS_PERFORMANCE_HISTORY_MINUTES"
+    )
+    DLROVER_DIAGNOSIS_PERFORMANCE_K = "DLROVER_DIAGNOSIS_PERFORMANCE_K"
+    DLROVER_DIAGNOSIS_PERFORMANCE_P = "DLROVER_DIAGNOSIS_PERFORMANCE_P"
+    DLROVER_DIAGNOSIS_PERFORMANCE_Q = "DLROVER_DIAGNOSIS_PERFORMANCE_Q"
 
 
 class InferenceConfigKey(object):
@@ -37,6 +46,9 @@ class DiagnosisConstant(object):
     CHECK_TENSOR_DEFAULT_RECORDS = 30
 
     AGENT_PERIODICALLY_REPORT_INTERVAL_SECS = 15
+    PROFILING_DEFAULT_DURATION_SECS = 180
+    PROFILING_MAX_DURATION_SECS = 600
+    PROFILING_ACTION_INTERVAL_SECS = 30 * 60
     MASTER_INSTANCE = -1  # do action by master instance only
     ANY_WORKER_INSTANCE = -2  # do action by any worker instance
     LOCAL_INSTANCE = -3  # do action by the current instance(master or worker)
@@ -52,6 +64,7 @@ class DiagnosticianType(object):
     RESOURCE_COLLECT_FAILURE = "resource_collection_failure"
     NODE_INCONSISTENCY = "node_inconsistency"
     TRAINING_HANG = "training_hang"
+    PERFORMANCE = "performance"
 
 
 class DiagnosisErrorConstant(object):
@@ -60,12 +73,14 @@ class DiagnosisErrorConstant(object):
     NODE_FAILED = "Node failed"
     REPEATED_NODE = "Repeated node"
     TRAINING_IS_HANG = "Training is hang"
+    TRAINING_SPEED_DEGRADATION = "training_speed_degradation"
 
 
 class DiagnosisDataType(object):
     GENERIC = "GENERIC"
     TRAINING_LOG = "TRAINING_LOG"
     XPU_TIMER_METRIC = "XPU_TIMER_METRIC"
+    PERFORMANCE_ISSUE = "PERFORMANCE_ISSUE"
 
 
 class DiagnosisActionType(object):
@@ -79,11 +94,13 @@ class DiagnosisActionType(object):
     JOB_RESTART = "job_restart"
     MASTER_RELAUNCH_WORKER = "master_relaunch_worker"
     EVENT = "event"
+    REPORT_DIAGNOSIS_DATA = "report_diagnosis_data"
 
     # node operation
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
     COLLECT_METRIC = "collect_metric"
+    ENABLE_PROFILING = "enable_profiling"
 
     # job operation
     RESTART_JOB = "restart_job"
@@ -109,6 +126,14 @@ class DiagnosisResult(object):
     DIAG_FAILURE = "failure"
     # diag finished, job has failure which cause abortion
     DIAG_ABORT = "abort"
+
+
+class DiagnosisState(object):
+    OPEN = "open"
+    ISSUE = "issue"
+    NO_ISSUE = "no_issue"
+    ACTION = "action"
+    CLOSED = "closed"
 
 
 class JobHangPolicy(object):
