@@ -1211,6 +1211,26 @@ class ElasticTrainingAgent(LocalElasticAgent):
     def _stop_workers(
         self, worker_group: WorkerGroup, is_restart=False, timeout=300
     ) -> None:
+        # Stopping the workers (membership-change failover or a failure
+        # restart) kills any training process that might be in the middle
+        # of an urgent save. The rank-0 listener removes the marker and
+        # reports the failure so the master stops waiting immediately.
+        # No-op when no save is in flight (e.g. the normal post-save FO
+        # of the eviction flow, where SAVED was already reported).
+        if self._urgent_save_listener is not None:
+            try:
+                aborted = self._urgent_save_listener.abort_in_flight(
+                    "workers stopped for restart/failover"
+                )
+                if aborted:
+                    logger.info(
+                        "Aborted the in-flight urgent save because the "
+                        "workers are stopping."
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to abort the in-flight urgent save: {e}"
+                )
         try:
             signal.signal(signal.SIGALRM, self._stop_timeout_handler)
             signal.alarm(timeout)

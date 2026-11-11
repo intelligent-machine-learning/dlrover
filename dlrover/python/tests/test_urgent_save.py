@@ -166,6 +166,8 @@ class UrgentSaveListenerTest(unittest.TestCase):
         self.assertTrue(os.path.exists(marker))
         payload = parse_payload(self.client.store[result_key(2.0)])
         self.assertEqual(payload["status"], STATUS_RECEIVED)
+        # The request is tracked as in flight for abort_in_flight.
+        self.assertEqual(self.listener._in_flight, (2.0, self.save_dir))
         # The same cmd ts is deduplicated (no result rewrite).
         self.listener._poll_once()
         self.assertEqual(
@@ -191,6 +193,7 @@ class UrgentSaveListenerTest(unittest.TestCase):
     def test_observe_reports_saved_when_tracker_flips(self):
         _write_tracker(self.save_dir, 10)
         marker = atomic_write_marker(self.save_dir, b'{"v":1}')
+        self.listener._in_flight = (4.0, self.save_dir)
         observer = threading.Thread(
             target=self.listener._observe,
             args=(4.0, self.save_dir, 10, marker),
@@ -210,10 +213,13 @@ class UrgentSaveListenerTest(unittest.TestCase):
         self.assertEqual(payload["status"], STATUS_SAVED)
         self.assertEqual(payload["step"], 11)
         self.assertIn("11", payload["message"])
+        # The in-flight state is cleared once the save is confirmed.
+        self.assertIsNone(self.listener._in_flight)
 
     def test_observe_waits_when_tracker_does_not_flip(self):
         _write_tracker(self.save_dir, 10)
         marker = atomic_write_marker(self.save_dir, b'{"v":1}')
+        self.listener._in_flight = (5.0, self.save_dir)
         observer = threading.Thread(
             target=self.listener._observe,
             args=(5.0, self.save_dir, 10, marker),
@@ -228,11 +234,13 @@ class UrgentSaveListenerTest(unittest.TestCase):
         time.sleep(0.1)
         self.assertTrue(observer.is_alive())
         self.assertNotIn(result_key(5.0), self.client.store)
+        self.listener._in_flight = None
 
     def test_observe_reports_first_flip_when_base_tracker_missing(self):
         # No checkpoint had been saved before the request: the first tracker
         # appearance (after the marker) counts as a flip.
         marker = atomic_write_marker(self.save_dir, b'{"v":1}')
+        self.listener._in_flight = (6.0, self.save_dir)
         observer = threading.Thread(
             target=self.listener._observe,
             args=(6.0, self.save_dir, None, marker),
@@ -245,6 +253,65 @@ class UrgentSaveListenerTest(unittest.TestCase):
         self.assertFalse(observer.is_alive())
         payload = parse_payload(self.client.store[result_key(6.0)])
         self.assertEqual(payload["status"], STATUS_SAVED)
+        self.assertIsNone(self.listener._in_flight)
+
+    def test_abort_in_flight_removes_marker_and_reports_error(self):
+        atomic_write_marker(self.save_dir, b'{"v":1}')
+        self.listener._in_flight = (7.0, self.save_dir)
+
+        aborted = self.listener.abort_in_flight("workers stopped")
+
+        self.assertTrue(aborted)
+        self.assertFalse(os.path.exists(marker_path(self.save_dir)))
+        payload = parse_payload(self.client.store[result_key(7.0)])
+        self.assertEqual(payload["status"], STATUS_ERROR)
+        self.assertIn("workers stopped", payload["message"])
+        self.assertIsNone(self.listener._in_flight)
+
+    def test_abort_without_in_flight_is_noop(self):
+        self.assertFalse(self.listener.abort_in_flight("no-op"))
+        self.assertEqual(self.client.store, {})
+
+    def test_observer_exits_when_aborted(self):
+        _write_tracker(self.save_dir, 10)
+        marker = atomic_write_marker(self.save_dir, b'{"v":1}')
+        self.listener._in_flight = (8.0, self.save_dir)
+        observer = threading.Thread(
+            target=self.listener._observe,
+            args=(8.0, self.save_dir, 10, marker),
+            daemon=True,
+        )
+        observer.start()
+        time.sleep(0.05)
+        self.assertTrue(observer.is_alive())
+
+        self.listener.abort_in_flight("workers stopped")
+
+        observer.join(timeout=5)
+        self.assertFalse(observer.is_alive())
+        payload = parse_payload(self.client.store[result_key(8.0)])
+        self.assertEqual(payload["status"], STATUS_ERROR)
+        self.assertFalse(os.path.exists(marker))
+
+    def test_observer_exits_when_superseded_by_newer_request(self):
+        _write_tracker(self.save_dir, 10)
+        marker = atomic_write_marker(self.save_dir, b'{"v":1}')
+        self.listener._in_flight = (9.0, self.save_dir)
+        observer = threading.Thread(
+            target=self.listener._observe,
+            args=(9.0, self.save_dir, 10, marker),
+            daemon=True,
+        )
+        observer.start()
+        time.sleep(0.05)
+        self.assertTrue(observer.is_alive())
+
+        # A newer request supersedes the observed one.
+        self.listener._in_flight = (10.0, self.save_dir)
+
+        observer.join(timeout=5)
+        self.assertFalse(observer.is_alive())
+        self.assertNotIn(result_key(9.0), self.client.store)
 
 
 if __name__ == "__main__":

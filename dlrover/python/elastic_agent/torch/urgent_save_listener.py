@@ -29,9 +29,9 @@ Requests (see ``dlrover.python.common.urgent_save``):
   starts up so a request left by a previous run cannot fire again.
 
 There is no timeout and no detection logic here by design: the observer
-waits until the tracker flips; if the training hangs or is relaunched, the
-regular dlrover mechanisms (node check / hang diagnosis, independent of
-this protocol) take over and the restart clears everything.
+waits until the tracker flips. If the workers are stopped mid-save
+(failover/restart), ``abort_in_flight`` removes the marker and publishes an
+error result so the master stops waiting immediately.
 """
 
 import json
@@ -74,6 +74,11 @@ class UrgentSaveListener(threading.Thread):
         self._node_name = os.environ.get("POD_NAME") or os.environ.get(
             "HOSTNAME", ""
         )
+        # The accepted request whose save has not been confirmed yet:
+        # (cmd_ts, save_dir). Used to abort the request when the local
+        # workers are stopped for a failover/restart mid-save.
+        self._in_flight_lock = threading.Lock()
+        self._in_flight = None
 
     def run(self):
         logger.info(
@@ -144,6 +149,8 @@ class UrgentSaveListener(threading.Thread):
             self._publish(
                 cmd_ts, STATUS_RECEIVED, "marker written at {}".format(marker)
             )
+            with self._in_flight_lock:
+                self._in_flight = (cmd_ts, save_dir)
         except Exception as e:  # noqa: BLE001 - report instead of dying
             logger.error(
                 "Urgent-save: fail to write the marker in %s: %s", save_dir, e
@@ -176,11 +183,28 @@ class UrgentSaveListener(threading.Thread):
         )
         while True:
             time.sleep(self._poll_interval)
+            with self._in_flight_lock:
+                in_flight = self._in_flight
+            if in_flight is None or in_flight[0] != cmd_ts:
+                # The request was aborted (workers stopped mid-save for a
+                # failover/restart) or superseded by a newer request.
+                logger.info(
+                    "Urgent-save: observer of request %s exits because the "
+                    "request is no longer in flight.",
+                    cmd_ts,
+                )
+                return
             iteration, tracker_mtime = read_tracker(save_dir)
             flipped = iteration is not None and (
                 base_iteration is None or iteration > base_iteration
             )
             if flipped and tracker_mtime > marker_mtime:
+                # Clear the in-flight state BEFORE publishing so a
+                # concurrent abort_in_flight() cannot overwrite this
+                # success with an error.
+                with self._in_flight_lock:
+                    if self._in_flight and self._in_flight[0] == cmd_ts:
+                        self._in_flight = None
                 self._publish(
                     cmd_ts,
                     STATUS_SAVED,
@@ -204,3 +228,29 @@ class UrgentSaveListener(threading.Thread):
             logger.error(
                 "Urgent-save: fail to publish '%s' result: %s", status, e
             )
+
+    def abort_in_flight(self, reason):
+        """Abort the in-flight urgent save when workers stop mid-save.
+
+        Called by the agent when it stops the local workers for a
+        failover/restart: the dying training processes can no longer
+        finish the save, so the marker is removed (a restarted training
+        must not consume a stale request) and an error result is
+        published so the master stops waiting immediately instead of
+        waiting for its deadline. Returns True if a request was aborted.
+        """
+        with self._in_flight_lock:
+            in_flight = self._in_flight
+            self._in_flight = None
+        if in_flight is None:
+            return False
+        cmd_ts, save_dir = in_flight
+        if remove_marker(save_dir):
+            logger.info(
+                "Urgent-save: marker removed on abort of request %s: %s",
+                cmd_ts,
+                marker_path(save_dir),
+            )
+        self._publish(cmd_ts, STATUS_ERROR, "aborted: {}".format(reason))
+        logger.warning("Urgent-save: request %s aborted (%s).", cmd_ts, reason)
+        return True

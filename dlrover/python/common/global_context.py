@@ -163,6 +163,17 @@ class Context(Singleton):
         self.dynamic_failover_extension = None
         self.enable_dashboard = False
         self.dashboard_port = 8080
+        # Save checkpoint before pod eviction (wired by the job launcher,
+        # e.g. dlrover-addon sets these from its --save-ckpt-on-eviction
+        # master arguments). An empty eviction label key disables the
+        # label detection in the pod watcher.
+        self.save_ckpt_on_eviction = False
+        self.eviction_pod_label_key = ""
+        self.eviction_pod_label_value = ""
+        self.eviction_save_timeout = 900
+        # The checkpoint save directory where the urgent-save marker is
+        # written for eviction-triggered saves.
+        self.urgent_save_dir = ""
 
     def set_params_from_brain(self):
         self.train_speed_record_num = self.get_param_value_from_brain(

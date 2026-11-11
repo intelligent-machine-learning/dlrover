@@ -200,6 +200,21 @@ def _convert_pod_yaml_to_node(pod):
     if NodeStatus.is_terminal_status(status):
         node.set_exit_reason(_get_pod_exit_reason(pod))
 
+    eviction_label_key = _dlrover_context.eviction_pod_label_key
+    if (
+        eviction_label_key
+        and labels.get(eviction_label_key)
+        == _dlrover_context.eviction_pod_label_value
+    ):
+        # The pod is marked for eviction by the cluster scheduler.
+        # The flag is consumed by the job manager to save the checkpoint
+        # before relaunching the pod; it bypasses the node state machine.
+        node.is_evicted = True
+        logger.info(
+            f"Node {pod_name} carries eviction label "
+            f"{eviction_label_key}={labels.get(eviction_label_key)}."
+        )
+
     logger.debug(
         f"convert yaml to node: {node} "
         f"type {pod_type}, id {pod_id}, name {pod_name}, "

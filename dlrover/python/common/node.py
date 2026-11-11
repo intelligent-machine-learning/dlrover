@@ -236,6 +236,10 @@ class Node(object):
         self.group = node_group
         self.group_size = node_group_size
         self.group_id = node_group_id
+        # True when the pod carries the configured eviction label,
+        # detected by the node watcher. It does not participate in the
+        # node state machine.
+        self.is_evicted = False
 
     def exited(self):
         return self.status in [
@@ -307,6 +311,7 @@ class Node(object):
         new_node.relaunchable = True
         new_node.init_time = time.time()
         new_node.reported_status = ("", 0)
+        new_node.is_evicted = False
 
         return new_node
 

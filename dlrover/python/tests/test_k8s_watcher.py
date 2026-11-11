@@ -31,6 +31,7 @@ from dlrover.python.common.constants import (
     NodeStatus,
     NodeType,
 )
+from dlrover.python.common.global_context import Context
 from dlrover.python.common.node import Node, NodeEvent
 from dlrover.python.master.resource.optimizer import ResourcePlan
 from dlrover.python.master.watcher.k8s_watcher import (
@@ -349,6 +350,42 @@ class PodWatcherTest(unittest.TestCase):
         self.assertEqual(worker2.group_id, None)
         self.assertEqual(worker2.rank_index, 2)
         self.assertEqual(worker2.status, NodeStatus.RUNNING)
+
+    def test_convert_pod_with_eviction_label(self):
+        # The eviction label is configurable via the dlrover context
+        # (empty key = detection disabled); there is no built-in label.
+        ctx = Context.singleton_instance()
+        saved = (
+            ctx.eviction_pod_label_key,
+            ctx.eviction_pod_label_value,
+        )
+        ctx.eviction_pod_label_key = "dlrover/eviction"
+        ctx.eviction_pod_label_value = "true"
+        try:
+            pod_list_dict = json.loads(json.dumps(self.pod_list_dict))
+            labels = pod_list_dict["items"][1]["metadata"]["labels"]
+            labels["dlrover/eviction"] = "true"
+            pod_list = self.api_client._ApiClient__deserialize(
+                pod_list_dict, "V1PodList"
+            )
+
+            worker0 = _convert_pod_yaml_to_node(pod_list.items[1])
+            self.assertTrue(worker0.is_evicted)
+
+            # The label value must match; other pods are not affected.
+            labels["dlrover/eviction"] = "false"
+            pod_list = self.api_client._ApiClient__deserialize(
+                pod_list_dict, "V1PodList"
+            )
+            worker0 = _convert_pod_yaml_to_node(pod_list.items[1])
+            self.assertFalse(worker0.is_evicted)
+            worker2 = _convert_pod_yaml_to_node(pod_list.items[3])
+            self.assertFalse(worker2.is_evicted)
+        finally:
+            (
+                ctx.eviction_pod_label_key,
+                ctx.eviction_pod_label_value,
+            ) = saved
 
     def test_convert_pod_event_to_node_event(self):
         event = {"object": None, "type": None}

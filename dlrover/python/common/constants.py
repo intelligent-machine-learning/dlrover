@@ -141,6 +141,10 @@ class NodeEventType(object):
     NODE_CHECK_FAILED = "NODE_CHECK_FAILED"
     MASTER_CONNECTION_FAILED = "MASTER_CONNECTION_FAILED"
     WAIT_PRE_CHECK = "WAIT_PRE_CHECK"
+    # Synthesized by the master when a pod carries the configured
+    # eviction label. It is not a k8s event type and bypasses the node
+    # state machine.
+    EVICTION = "EVICTION"
 
 
 class PendingTimeoutStrategyType(object):

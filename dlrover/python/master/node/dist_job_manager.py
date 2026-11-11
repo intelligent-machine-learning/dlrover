@@ -39,6 +39,15 @@ from dlrover.python.common.constants import (
 from dlrover.python.common.global_context import Context
 from dlrover.python.common.log import default_logger as logger
 from dlrover.python.common.node import Node, NodeEvent, NodeGroupResource
+from dlrover.python.common.urgent_save import (
+    KV_CMD_KEY,
+    STATUS_ERROR,
+    STATUS_SAVED,
+    build_cmd,
+    get_master_kv_store,
+    parse_payload,
+    result_key,
+)
 from dlrover.python.diagnosis.common.constants import DiagnosisConstant
 from dlrover.python.diagnosis.common.diagnosis_action import (
     DiagnosisAction,
@@ -99,6 +108,9 @@ _master_evt = DLRoverMasterEvent().singleton_instance()
 job_ctx = get_job_context()
 
 _MAX_POD_RELAUNCH_COUNT = 5
+
+# Poll interval of the eviction-save waiter thread.
+_EVICTION_SAVE_POLL_INTERVAL_SECONDS = 5.0
 
 
 def is_positive_exit(exit_reason):
@@ -232,6 +244,17 @@ class DistributedJobManager(JobManager):
         self._relaunched_groups: List[int] = []
         self._group_relaunch_count = 0
         self._max_group_relaunch_count = _dlrover_context.max_relaunch_count
+        # Eviction-triggered urgent save state (--save-ckpt-on-eviction).
+        # Nodes carrying the eviction label wait here between the urgent
+        # save request and its completion, then get relaunched.
+        self._eviction_lock = threading.Lock()
+        self._eviction_pending: Dict[str, Node] = {}
+        # cmd_ts of the in-flight eviction urgent save; 0 when idle.
+        self._eviction_save_ts = 0.0
+        # When the last eviction urgent save completed. Training sleeps
+        # after an urgent save, so evictions observed within one timeout
+        # window afterwards are relaunched without saving again.
+        self._eviction_save_finished_at = 0.0
 
     def _init_topology_rerank(self, job_args: JobArgs):
         """Validate the ``--enable-topology-rerank`` configuration.
@@ -1129,6 +1152,20 @@ class DistributedJobManager(JobManager):
             logger.warning(detail_trace_back)
 
     def _process_event(self, event: NodeEvent):
+        # A pod carrying the configured eviction label is converted
+        # into an EVICTION event which bypasses the node
+        # state machine: the checkpoint is saved before the pod is
+        # relaunched. Both the watch stream (MODIFIED) and the periodic
+        # list re-sync carry the flag on the converted node.
+        if event.event_type not in (
+            NodeEventType.EVICTION,
+            NodeEventType.DELETED,
+        ) and getattr(event.node, "is_evicted", False):
+            event = NodeEvent(NodeEventType.EVICTION, event.node)
+        if event.event_type == NodeEventType.EVICTION:
+            self._handle_pod_eviction(event.node)
+            return
+
         node_type = event.node.type
         node_status = event.node.status
         node_id = event.node.id
@@ -1502,6 +1539,203 @@ class DistributedJobManager(JobManager):
         if node.has_group():
             self._job_context.update_job_node_by_group(node)
         self._scaler.scale(plan, with_merge=True)
+
+    def _handle_pod_eviction(self, node: Node):
+        """Save the checkpoint before relaunching an evicted pod.
+
+        Triggered by EVICTION events (a pod carrying the configured
+        eviction label). The urgent save is job-global:
+        one in-flight save covers all pods evicted while it runs. The
+        node monitor thread is never blocked here — a daemon thread waits
+        for the save result and then relaunches all pending evicted
+        nodes.
+        """
+        if not _dlrover_context.save_ckpt_on_eviction:
+            return
+        if node.type != NodeType.WORKER:
+            logger.warning(
+                f"Ignore the eviction of non-worker node {node.name}."
+            )
+            return
+        if node.is_released or node.status != NodeStatus.RUNNING:
+            logger.info(
+                f"Skip the eviction of node {node.name} with status "
+                f"{node.status} (released={node.is_released})."
+            )
+            return
+        if job_ctx.is_stopping() or job_ctx.is_restarting():
+            logger.info(
+                f"Skip the eviction handling of {node.name} because "
+                "the job is stopping or restarting."
+            )
+            return
+        job_nodes = self.get_job_nodes()
+        if node.id not in job_nodes.get(node.type, {}):
+            # A stale pod left over from a previous generation.
+            logger.info(
+                f"Skip the eviction of node {node.name}(id={node.id}) "
+                "which is not in the job nodes."
+            )
+            return
+
+        key = f"{node.type}-{node.id}"
+        relaunch_now = False
+        with self._eviction_lock:
+            if key in self._eviction_pending:
+                return
+            self._eviction_pending[key] = node
+            logger.info(
+                f"Node {node.name}(id={node.id}, rank={node.rank_index})"
+                " carries the eviction label; "
+                f"{len(self._eviction_pending)} node(s) pending "
+                "eviction relaunch."
+            )
+            if self._eviction_save_ts > 0:
+                # The in-flight urgent save covers this node too.
+                logger.info(
+                    f"Eviction of {node.name} joins the in-flight "
+                    f"urgent save {self._eviction_save_ts}."
+                )
+                return
+            timeout = _dlrover_context.eviction_save_timeout
+            idle_for = time.time() - self._eviction_save_finished_at
+            if self._eviction_save_finished_at > 0 and idle_for < timeout:
+                # Training slept after the last urgent save and cannot
+                # have progressed; relaunch directly without saving.
+                logger.info(
+                    f"Skip the urgent save for the eviction of "
+                    f"{node.name}: the last save finished "
+                    f"{idle_for:.0f}s ago and training has been "
+                    "sleeping since then."
+                )
+                relaunch_now = True
+            elif not self._start_eviction_save_locked():
+                relaunch_now = True
+        if relaunch_now:
+            with self._eviction_lock:
+                self._eviction_pending.pop(key, None)
+            self._relaunch_evicted_node(node)
+
+    def _start_eviction_save_locked(self) -> bool:
+        """Publish an urgent-save command for the pending evictions.
+
+        Called with `self._eviction_lock` held. Returns False — and the
+        caller relaunches directly — when the save channel is not
+        available.
+        """
+        kv = get_master_kv_store()
+        save_dir = _dlrover_context.urgent_save_dir
+        if kv is None or not save_dir:
+            logger.warning(
+                "Cannot save the checkpoint before eviction: "
+                f"kv store ready={kv is not None}, "
+                f"urgent_save_dir='{save_dir}'. "
+                "Relaunch the evicted pods directly."
+            )
+            return False
+        cmd_ts = time.time()
+        names = sorted(n.name for n in self._eviction_pending.values())
+        reason = "eviction:" + ",".join(names[:8])
+        kv.set(KV_CMD_KEY, build_cmd(cmd_ts, save_dir, reason))
+        self._eviction_save_ts = cmd_ts
+        logger.info(
+            f"Urgent save {cmd_ts} requested for evicted pods {names}, "
+            f"save_dir={save_dir}; waiting up to "
+            f"{_dlrover_context.eviction_save_timeout}s for the save."
+        )
+        waiter = threading.Thread(
+            target=self._wait_eviction_save_done,
+            args=(cmd_ts,),
+            name="eviction-save-waiter",
+            daemon=True,
+        )
+        waiter.start()
+        return True
+
+    def _wait_eviction_save_done(self, cmd_ts: float):
+        """Wait for the eviction urgent save and relaunch pending nodes."""
+        timeout = _dlrover_context.eviction_save_timeout
+        deadline = time.time() + timeout
+        kv = get_master_kv_store()
+        status = "timeout"
+        payload: Optional[dict] = None
+        while time.time() < deadline:
+            try:
+                payload = parse_payload(kv.get(result_key(cmd_ts)))
+            except Exception as e:
+                logger.warning(
+                    f"Poll the eviction save {cmd_ts} result failed: {e}"
+                )
+                payload = None
+            if payload and payload.get("status") in (
+                STATUS_SAVED,
+                STATUS_ERROR,
+            ):
+                status = payload["status"]
+                break
+            time.sleep(_EVICTION_SAVE_POLL_INTERVAL_SECONDS)
+
+        if status == STATUS_SAVED:
+            logger.info(
+                f"Eviction urgent save {cmd_ts} completed at step "
+                f"{(payload or {}).get('step')}; relaunch the evicted "
+                "pods."
+            )
+        elif status == STATUS_ERROR:
+            logger.error(
+                f"Eviction urgent save {cmd_ts} failed: "
+                f"{(payload or {}).get('error')}; relaunch the evicted "
+                "pods anyway."
+            )
+        else:
+            logger.error(
+                f"Timeout {timeout}s waiting for the eviction urgent "
+                f"save {cmd_ts}; relaunch the evicted pods anyway."
+            )
+
+        with self._eviction_lock:
+            nodes = list(self._eviction_pending.values())
+            self._eviction_pending.clear()
+            self._eviction_save_ts = 0.0
+            if status == STATUS_SAVED:
+                self._eviction_save_finished_at = time.time()
+        for node in nodes:
+            self._relaunch_evicted_node(node)
+
+    def _relaunch_evicted_node(self, node: Node):
+        """Relaunch an evicted node and delete its old pod.
+
+        The old node is first marked not-relaunchable so the DELETED
+        event of the old pod does not trigger a second relaunch; the
+        replacement pod is then launched and finally the old pod is
+        deleted to complete the eviction.
+        """
+        job_nodes = self.get_job_nodes()
+        cur_node = job_nodes.get(node.type, {}).get(node.id)
+        if cur_node is None or cur_node.is_released:
+            logger.info(
+                f"Skip relaunching the evicted node {node.name}: "
+                "already released."
+            )
+            return
+        cur_node.relaunchable = False
+        self._job_context.update_job_node(cur_node)
+        logger.info(
+            f"Relaunch the evicted node {cur_node.name}(id="
+            f"{cur_node.id}, rank={cur_node.rank_index}) after the "
+            "urgent save."
+        )
+        self._relaunch_node(cur_node)
+        try:
+            self._k8s_client.delete_pod(cur_node.name)
+            logger.info(
+                f"Deleted the evicted pod {cur_node.name} to complete "
+                "the eviction."
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to delete the evicted pod {cur_node.name}: {e}"
+            )
 
     def _relaunch_node_group(self, node_group: int):
         """
