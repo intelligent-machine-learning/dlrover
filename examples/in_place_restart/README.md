@@ -184,6 +184,24 @@ The final status verifies that:
 - all ranks completed at least one recovery;
 - all ranks reached the final training step.
 
+The supervisor prints the process replacement and continuity explicitly:
+
+```text
+[supervisor] initial processes: rank 0=pid 101, rank 1=pid 102,
+rank 2=pid 103, rank 3=pid 104
+[supervisor] FAILED rank 2: old_pid=103, exit_code=17
+[supervisor] healthy processes still running:
+rank 0=pid 101, rank 1=pid 102, rank 3=pid 104
+[supervisor] REPLACED rank 2: old_pid=103, new_pid=205
+[supervisor] RECOVERED rank 0: pid=101, epoch=1, step=20
+[supervisor] RECOVERED rank 1: pid=102, epoch=1, step=20
+[supervisor] RECOVERED rank 2: pid=205, epoch=1, step=20
+[supervisor] RECOVERED rank 3: pid=104, epoch=1, step=20
+```
+
+The final summary marks ranks 0, 1, and 3 as `CONTINUED` and rank 2 as
+`REPLACED`.
+
 Use a persistent work directory to inspect the artifacts:
 
 ```bash

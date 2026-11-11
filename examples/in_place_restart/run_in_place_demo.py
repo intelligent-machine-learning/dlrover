@@ -147,15 +147,19 @@ def _print_summary(
     for rank in range(WORLD_SIZE):
         status = read_json(work_dir / "status" / f"rank_{rank}.json")
         status = status or {}
-        result = "restarted" if initial_pids[rank] != final_pids[rank] else (
-            "pid preserved"
-        )
-        print(
-            f"  rank {rank}: initial_pid={initial_pids[rank]}, "
-            f"final_pid={final_pids[rank]}, {result}, "
-            f"step={status.get('global_step')}, "
-            f"recoveries={status.get('recovery_count')}"
-        )
+        if initial_pids[rank] != final_pids[rank]:
+            print(
+                f"  rank {rank}: REPLACED "
+                f"{initial_pids[rank]} -> {final_pids[rank]}, "
+                f"step={status.get('global_step')}, "
+                f"recoveries={status.get('recovery_count')}"
+            )
+        else:
+            print(
+                f"  rank {rank}: CONTINUED with pid {final_pids[rank]}, "
+                f"step={status.get('global_step')}, "
+                f"recoveries={status.get('recovery_count')}"
+            )
 
 
 def run(args: argparse.Namespace) -> int:
@@ -197,10 +201,18 @@ def run(args: argparse.Namespace) -> int:
             )
             processes[rank] = process
             initial_pids[rank] = process.pid
+        print(
+            "[supervisor] initial processes: "
+            + ", ".join(
+                f"rank {rank}=pid {initial_pids[rank]}"
+                for rank in range(WORLD_SIZE)
+            )
+        )
 
         deadline = time.monotonic() + args.job_timeout_seconds
         recovery_started = False
         replacement_pid = None
+        reported_recovery = set()
 
         while True:
             alive = [
@@ -225,6 +237,14 @@ def run(args: argparse.Namespace) -> int:
                     and not recovery_started
                     and return_code != 0
                 ):
+                    healthy_pids = {
+                        healthy_rank: healthy_process.pid
+                        for healthy_rank, healthy_process in (
+                            processes.items()
+                        )
+                        if healthy_rank != rank
+                        and healthy_process.poll() is None
+                    }
                     latest = _wait_for_file(
                         work_dir / "checkpoints" / "latest.json",
                         timeout_seconds=args.recovery_timeout_seconds,
@@ -252,8 +272,17 @@ def run(args: argparse.Namespace) -> int:
                         command.to_dict(),
                     )
                     print(
-                        f"[supervisor] rank {rank} exited with "
-                        f"{return_code}; restarting only rank {rank}"
+                        f"[supervisor] FAILED rank {rank}: "
+                        f"old_pid={process.pid}, exit_code={return_code}"
+                    )
+                    print(
+                        "[supervisor] healthy processes still running: "
+                        + ", ".join(
+                            f"rank {healthy_rank}=pid {pid}"
+                            for healthy_rank, pid in sorted(
+                                healthy_pids.items()
+                            )
+                        )
                     )
                     replacement = _launch_worker(
                         rank,
@@ -265,6 +294,11 @@ def run(args: argparse.Namespace) -> int:
                     processes[rank] = replacement
                     replacement_pid = replacement.pid
                     recovery_started = True
+                    print(
+                        f"[supervisor] REPLACED rank {rank}: "
+                        f"old_pid={process.pid}, "
+                        f"new_pid={replacement.pid}"
+                    )
                 elif not recovery_started and return_code != 0:
                     raise RuntimeError(
                         f"rank {rank} failed before recovery with "
@@ -288,6 +322,25 @@ def run(args: argparse.Namespace) -> int:
                         f"replacement rank {rank} failed during recovery "
                         f"with exit code {return_code}"
                     )
+
+            for rank in range(WORLD_SIZE):
+                if rank in reported_recovery:
+                    continue
+                status = read_json(
+                    work_dir / "status" / f"rank_{rank}.json"
+                )
+                if (
+                    status is not None
+                    and int(status.get("recovery_count", 0)) > 0
+                    and status.get("phase") == "running"
+                ):
+                    print(
+                        f"[supervisor] RECOVERED rank {rank}: "
+                        f"pid={status['pid']}, "
+                        f"epoch={status['recovery_epoch']}, "
+                        f"step={status['global_step']}"
+                    )
+                    reported_recovery.add(rank)
 
             time.sleep(0.2)
 
