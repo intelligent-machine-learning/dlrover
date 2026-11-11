@@ -49,6 +49,16 @@ from dlrover.python.common.node import (
     NodeGroupResource,
     NodeResource,
 )
+from dlrover.python.common.urgent_save import (
+    ACTION_SAVE,
+    KV_CMD_KEY,
+    STATUS_ERROR,
+    STATUS_SAVED,
+    build_result,
+    parse_payload,
+    register_master_kv_store,
+    result_key,
+)
 from dlrover.python.diagnosis.common.diagnosis_action import (
     EventAction,
     NoAction,
@@ -2594,3 +2604,234 @@ class LocalJobManagerTest(unittest.TestCase):
         job_context = get_job_context()
         self.assertEqual(job_context.get_job_restart_count(), 0)
         self.assertEqual(job_context.inc_job_restart_count(), 1)
+
+
+class _FakeKVStore:
+    """A minimal in-memory KV store mimicking the master KVStoreService."""
+
+    def __init__(self):
+        self.store = {}
+
+    def get(self, key):
+        return self.store.get(key, b"")
+
+    def set(self, key, value):
+        self.store[key] = value
+        return True
+
+
+class PodEvictionSaveTest(unittest.TestCase):
+    """EVICTION events: urgent save first, then relaunch the evicted pod.
+
+    The eviction branch bypasses the node state machine: the node keeps
+    its RUNNING status while the master waits for the urgent save.
+    """
+
+    def setUp(self):
+        import dlrover.python.master.node.dist_job_manager as djm_module
+
+        self._djm = djm_module
+        self._ctx = djm_module._dlrover_context
+        self._saved_ctx = (
+            self._ctx.save_ckpt_on_eviction,
+            self._ctx.eviction_save_timeout,
+            self._ctx.urgent_save_dir,
+        )
+        self._ctx.save_ckpt_on_eviction = True
+        self._ctx.eviction_save_timeout = 0.5
+        self._ctx.urgent_save_dir = "/tmp/ckpt"
+        self._saved_job_ctx = djm_module.job_ctx
+        djm_module.job_ctx = SimpleNamespace(
+            is_stopping=lambda: False,
+            is_restarting=lambda: False,
+        )
+        self.kv = _FakeKVStore()
+        register_master_kv_store(self.kv)
+        self._poll_patch = patch(
+            "dlrover.python.master.node.dist_job_manager"
+            "._EVICTION_SAVE_POLL_INTERVAL_SECONDS",
+            0.01,
+        )
+        self._poll_patch.start()
+
+    def tearDown(self):
+        self._poll_patch.stop()
+        (
+            self._ctx.save_ckpt_on_eviction,
+            self._ctx.eviction_save_timeout,
+            self._ctx.urgent_save_dir,
+        ) = self._saved_ctx
+        self._djm.job_ctx = self._saved_job_ctx
+        register_master_kv_store(None)
+
+    def _new_manager(self, node_status=NodeStatus.RUNNING):
+        manager = DistributedJobManager.__new__(DistributedJobManager)
+        manager._eviction_lock = threading.Lock()
+        manager._eviction_pending = {}
+        manager._eviction_save_ts = 0.0
+        manager._eviction_save_finished_at = 0.0
+        manager._k8s_client = MagicMock()
+        manager._relaunch_node = MagicMock()
+        manager._job_context = SimpleNamespace(
+            update_job_node=lambda n: None,
+            update_job_node_by_group=lambda n: None,
+        )
+        node = Node(
+            NodeType.WORKER,
+            0,
+            NodeResource(4, 8192),
+            name="worker-0",
+            status=node_status,
+        )
+        manager.get_job_nodes = lambda: {NodeType.WORKER: {0: node}}
+        return manager, node
+
+    def _wait_condition(self, fn, timeout=5.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if fn():
+                return True
+            time.sleep(0.01)
+        return False
+
+    def test_eviction_disabled_is_noop(self):
+        self._ctx.save_ckpt_on_eviction = False
+        manager, node = self._new_manager()
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+        self.assertEqual(manager._eviction_pending, {})
+        self.assertEqual(self.kv.store, {})
+        manager._relaunch_node.assert_not_called()
+
+    def test_flagged_modified_event_becomes_eviction(self):
+        # A MODIFIED event of a pod carrying the eviction label is routed
+        # to the eviction branch without touching the state machine.
+        manager, node = self._new_manager()
+        node.is_evicted = True
+        manager._process_event(NodeEvent(NodeEventType.MODIFIED, node))
+        self.assertTrue(manager._eviction_save_ts > 0)
+        self.assertIn("worker-0", manager._eviction_pending)
+        # The node status is untouched by the eviction branch.
+        self.assertEqual(node.status, NodeStatus.RUNNING)
+
+    def test_eviction_publishes_urgent_save_cmd(self):
+        manager, node = self._new_manager()
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+
+        cmd = parse_payload(self.kv.store.get(KV_CMD_KEY))
+        self.assertIsNotNone(cmd)
+        self.assertEqual(cmd["action"], ACTION_SAVE)
+        self.assertEqual(cmd["save_dir"], "/tmp/ckpt")
+        self.assertIn("eviction:worker-0", cmd["reason"])
+        self.assertEqual(manager._eviction_save_ts, cmd["ts"])
+
+        # The waiter relaunches the node on timeout (no result comes).
+        self.assertTrue(
+            self._wait_condition(lambda: manager._relaunch_node.called)
+        )
+        self.assertFalse(node.relaunchable)
+        manager._k8s_client.delete_pod.assert_called_with("worker-0")
+        self.assertEqual(manager._eviction_pending, {})
+        self.assertEqual(manager._eviction_save_ts, 0.0)
+        # A timed-out save does not open the skip-saving window.
+        self.assertEqual(manager._eviction_save_finished_at, 0.0)
+
+    def test_eviction_dedupes_nodes_during_in_flight_save(self):
+        manager, node = self._new_manager()
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+        first_ts = manager._eviction_save_ts
+
+        # A repeated event of the same node and an event of another
+        # evicted node join the in-flight save without a new command.
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+        node1 = Node(
+            NodeType.WORKER,
+            1,
+            NodeResource(4, 8192),
+            name="worker-1",
+            status=NodeStatus.RUNNING,
+        )
+        manager.get_job_nodes = lambda: {NodeType.WORKER: {0: node, 1: node1}}
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node1))
+
+        self.assertEqual(manager._eviction_save_ts, first_ts)
+        self.assertEqual(len(manager._eviction_pending), 2)
+        cmd = parse_payload(self.kv.store.get(KV_CMD_KEY))
+        self.assertEqual(cmd["ts"], first_ts)
+
+        self.assertTrue(
+            self._wait_condition(lambda: manager._relaunch_node.called)
+        )
+
+    def test_saved_result_relaunches_and_opens_skip_window(self):
+        manager, node = self._new_manager()
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+        cmd_ts = manager._eviction_save_ts
+        self.kv.store[result_key(cmd_ts)] = build_result(
+            cmd_ts, STATUS_SAVED, "tracker flipped", step=42
+        )
+
+        self.assertTrue(
+            self._wait_condition(lambda: manager._relaunch_node.called)
+        )
+        self.assertFalse(node.relaunchable)
+        manager._k8s_client.delete_pod.assert_called_with("worker-0")
+        self.assertTrue(manager._eviction_save_finished_at > 0)
+
+        # Training sleeps after the urgent save: another eviction within
+        # one timeout window is relaunched directly without a new save.
+        self.kv.store.pop(KV_CMD_KEY)
+        node2 = Node(
+            NodeType.WORKER,
+            2,
+            NodeResource(4, 8192),
+            name="worker-2",
+            status=NodeStatus.RUNNING,
+        )
+        manager.get_job_nodes = lambda: {NodeType.WORKER: {2: node2}}
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node2))
+        manager._relaunch_node.assert_called_with(node2)
+        self.assertNotIn(KV_CMD_KEY, self.kv.store)
+        self.assertEqual(manager._eviction_pending, {})
+
+    def test_error_result_relaunches_without_skip_window(self):
+        manager, node = self._new_manager()
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+        cmd_ts = manager._eviction_save_ts
+        self.kv.store[result_key(cmd_ts)] = build_result(
+            cmd_ts, STATUS_ERROR, "aborted: workers stopped"
+        )
+
+        self.assertTrue(
+            self._wait_condition(lambda: manager._relaunch_node.called)
+        )
+        self.assertEqual(manager._eviction_save_finished_at, 0.0)
+
+    def test_eviction_ignores_not_running_or_non_worker_nodes(self):
+        manager, node = self._new_manager(node_status=NodeStatus.FAILED)
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+        self.assertEqual(manager._eviction_pending, {})
+
+        ps_node = Node(
+            NodeType.PS,
+            0,
+            NodeResource(4, 8192),
+            name="ps-0",
+            status=NodeStatus.RUNNING,
+        )
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, ps_node))
+        self.assertEqual(manager._eviction_pending, {})
+
+    def test_eviction_without_save_dir_relaunches_directly(self):
+        self._ctx.urgent_save_dir = ""
+        manager, node = self._new_manager()
+        manager._process_event(NodeEvent(NodeEventType.EVICTION, node))
+        manager._relaunch_node.assert_called_once_with(node)
+        self.assertEqual(self.kv.store, {})
+        manager._k8s_client.delete_pod.assert_called_with("worker-0")
+
+    def test_relaunch_evicted_node_skips_released_node(self):
+        manager, node = self._new_manager()
+        node.is_released = True
+        manager._relaunch_evicted_node(node)
+        manager._relaunch_node.assert_not_called()
+        manager._k8s_client.delete_pod.assert_not_called()
