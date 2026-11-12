@@ -18,7 +18,9 @@ and expert all-to-all recovery in the first prototype.
 
 ## Requirements
 
-- Linux with four GPUs for the DDP demo or eight GPUs for the hybrid demo
+- Linux with four GPUs for the DDP demo, eight GPUs on one node for the
+  single-node hybrid demo, or four GPUs on each of two nodes for the
+  multi-node hybrid demo
 - PyTorch 2.14 or newer
 - The experimental `nccl2` distributed backend
 - NCCL 2.28 or newer; NCCL 2.32 is recommended
@@ -314,6 +316,27 @@ during recovery. The healthy ranks retain their PIDs, rank 3 receives a new
 PID, all eight ranks restore their topology-specific checkpoint shards, and
 training resumes from the previous committed checkpoint.
 
+The same supervisor accepts `--recovery-mode restart-all` for a full
+eight-process restart baseline. It terminates all healthy processes, starts
+eight fresh workers on a fresh `FileStore` generation, and resumes every rank
+from the committed checkpoint. The comparison launcher runs both modes:
+
+```bash
+COMPARE_DIR=$(mktemp -d /tmp/dlrover-hybrid-compare.XXXXXX)
+
+python examples/in_place_restart/tp2_pp2_dp2/run_recovery_comparison.py \
+  --work-dir "$COMPARE_DIR" \
+  --steps 40 \
+  --checkpoint-interval 10 \
+  --fail-rank 3 \
+  --fail-at-step 23
+```
+
+It reports loss differences after the checkpoint, failure-to-resume time,
+process restart counts, and the time saved by in-place recovery. The
+comparison artifacts are described in the
+[eight-GPU README](tp2_pp2_dp2/README.md).
+
 The eight-rank image check is:
 
 ```bash
@@ -337,6 +360,59 @@ docker run --rm \
   python examples/in_place_restart/tp2_pp2_dp2/run_in_place_demo.py \
   --work-dir /artifacts
 ```
+
+## Two-node TP2 x PP2 x DP2 demo
+
+The [two-node hybrid worker](tp2_pp2_dp2_2nodes/run_node_agent.py) uses the
+same model, topology, checkpoint format, and reconfiguration code as the
+eight-GPU single-node demo. It changes only the process and control-plane
+layout:
+
+```text
+node 0: ranks 0,1,2,3
+node 1: ranks 4,5,6,7
+```
+
+Both nodes launch four workers with `LOCAL_RANK=0..3`. The default failure is
+rank 5 (`TP1-PP0-DP1`). Rank 5's TP and PP peers are on node 1, and its DP
+peer rank 1 is on node 0. Only node 1 starts rank 5's replacement. All other
+workers retain their original process and recover in place.
+
+The two agents coordinate through one shared work directory. That directory
+must have the same absolute path on both nodes and must support
+`torch.distributed.FileStore`. It also contains the checkpoint shards,
+recovery command, and final status files.
+
+Start node 0 first:
+
+```bash
+export RUN_DIR=/nas/shared/dlrover/two-node-run-001
+mkdir -p "$RUN_DIR"
+
+bash examples/in_place_restart/tp2_pp2_dp2_2nodes/run_node0.sh \
+  --work-dir "$RUN_DIR" \
+  --fail-rank 5 \
+  --fail-at-step 23
+```
+
+Start node 1 while node 0 is waiting:
+
+```bash
+bash examples/in_place_restart/tp2_pp2_dp2_2nodes/run_node1.sh \
+  --work-dir "$RUN_DIR" \
+  --fail-rank 5 \
+  --fail-at-step 23
+```
+
+Pass `--nccl-socket-ifname` or `--nccl-ib-hca` when the cluster does not
+auto-select the correct cross-node network. Set `NCCL_DEBUG=INFO` for the
+first validation run. See the [two-node README](tp2_pp2_dp2_2nodes/README.md)
+for the complete launch, container, topology, recovery, and verification
+details.
+
+Run `verify_image.py --world-size 4` on each node before the two-node job.
+That check validates the local four-GPU runtime; the job itself validates
+cross-node NCCL and shared-directory access.
 
 ## DLRover integration
 
@@ -365,6 +441,9 @@ worker, including rank 0, fails.
   `_reconfigure` are experimental PyTorch APIs.
 - The four-rank demo uses only the default group; the eight-rank demo uses
   the default, TP, PP, and DP groups.
+- The two-node demo uses a shared `FileStore` for control and rendezvous. A
+  production deployment should replace it with a DLRover-owned rendezvous
+  that survives control-plane or worker failures.
 - The TP2 x PP2 x DP2 demo uses a toy pipeline schedule with one microbatch.
 - The local supervisor injects one failure and does not handle a second rank
   failure during recovery.

@@ -16,11 +16,13 @@
 EP=1 means there is no expert partition across additional expert-parallel
 ranks. Stage 0 owns a TP-sharded embedding. Stage 1 owns TP-sharded MoE
 experts and a TP-sharded output head. Each stage uses its own data-parallel
-group.
+group. The same worker runs on one node with eight GPUs or on two nodes with
+four GPUs each; the launcher supplies the global and local rank mapping.
 """
 
 import argparse
 import gc
+import json
 import os
 import sys
 import threading
@@ -161,6 +163,9 @@ class HybridRuntime:
     batch_index: int = 0
     recovery_epoch: int = 0
     recovery_count: int = 0
+    process_generation: int = 0
+    restart_count: int = 0
+    recovery_ready_unix_ms: int = 0
 
     @property
     def tp_group(self) -> Any:
@@ -447,7 +452,13 @@ def _seeded_tensor(
 
 
 def _log(rank: int, message: str) -> None:
-    print(f"[rank {rank} pid {os.getpid()}] {message}", flush=True)
+    node_rank = int(os.getenv("NODE_RANK", "0"))
+    local_rank = int(os.getenv("LOCAL_RANK", str(rank)))
+    print(
+        f"[rank {rank} node {node_rank} local_rank {local_rank} "
+        f"pid {os.getpid()}] {message}",
+        flush=True,
+    )
 
 
 def _group_specs(topology: ParallelTopology) -> List[GroupSpec]:
@@ -531,14 +542,51 @@ def _setup_distributed(
         )
     rank = int(os.environ["RANK"])
     local_rank = int(os.environ["LOCAL_RANK"])
+    if rank < 0 or rank >= WORLD_SIZE:
+        raise ValueError(f"RANK must be in [0, {WORLD_SIZE})")
+    local_world_size = int(
+        os.getenv("LOCAL_WORLD_SIZE", str(WORLD_SIZE))
+    )
+    if local_world_size <= 0 or WORLD_SIZE % local_world_size != 0:
+        raise ValueError(
+            "LOCAL_WORLD_SIZE must be a positive divisor of WORLD_SIZE"
+        )
+    expected_node_rank = rank // local_world_size
+    expected_node_count = WORLD_SIZE // local_world_size
+    node_count = int(
+        os.getenv("NODE_WORLD_SIZE", str(expected_node_count))
+    )
+    if node_count != expected_node_count:
+        raise ValueError(
+            f"WORLD_SIZE={WORLD_SIZE} and "
+            f"LOCAL_WORLD_SIZE={local_world_size} require "
+            f"NODE_WORLD_SIZE={expected_node_count}, not {node_count}"
+        )
+    node_rank = int(
+        os.getenv("NODE_RANK", str(expected_node_rank))
+    )
+    expected_local_rank = rank % local_world_size
+    if node_rank != expected_node_rank:
+        raise ValueError(
+            f"RANK={rank} belongs to node {expected_node_rank}, "
+            f"not NODE_RANK={node_rank}"
+        )
+    if local_rank != expected_local_rank:
+        raise ValueError(
+            f"RANK={rank} requires LOCAL_RANK={expected_local_rank}, "
+            f"not {local_rank}"
+        )
     torch.cuda.set_device(local_rank)
     device = torch.device("cuda", local_rank)
 
     topology = ParallelTopology()
     work_dir = Path(args.work_dir)
-    rendezvous_dir = work_dir / "rendezvous"
-    rendezvous_dir.mkdir(parents=True, exist_ok=True)
-    store = dist.FileStore(str(rendezvous_dir / "store"), WORLD_SIZE)
+    if args.store_path:
+        store_path = Path(args.store_path)
+    else:
+        store_path = work_dir / "rendezvous" / "store"
+    store_path.parent.mkdir(parents=True, exist_ok=True)
+    store = dist.FileStore(str(store_path), WORLD_SIZE)
 
     _require_reconfigure_api()
     dist.init_process_group(
@@ -754,9 +802,15 @@ def _write_status(
     phase: str,
     **extra: Any,
 ) -> None:
+    local_world_size = int(
+        os.getenv("LOCAL_WORLD_SIZE", str(WORLD_SIZE))
+    )
     status = {
         "rank": runtime.rank,
         "pid": os.getpid(),
+        "local_rank": runtime.local_rank,
+        "local_world_size": local_world_size,
+        "node_rank": runtime.rank // local_world_size,
         "phase": phase,
         "global_step": runtime.global_step,
         "epoch": runtime.epoch,
@@ -766,6 +820,9 @@ def _write_status(
         "dp_rank": runtime.dp_rank,
         "recovery_epoch": runtime.recovery_epoch,
         "recovery_count": runtime.recovery_count,
+        "process_generation": runtime.process_generation,
+        "restart_count": runtime.restart_count,
+        "recovery_ready_unix_ms": runtime.recovery_ready_unix_ms,
         "timestamp_unix_ms": int(time.time() * 1000),
     }
     status.update(extra)
@@ -775,6 +832,33 @@ def _write_status(
         / f"rank_{runtime.rank}.json",
         status,
     )
+
+
+def _append_loss_metric(
+    runtime: HybridRuntime,
+    loss: torch.Tensor,
+    router_metric: torch.Tensor,
+) -> None:
+    metrics_dir = runtime.work_dir / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    path = metrics_dir / f"loss_rank_{runtime.rank}.jsonl"
+    record = {
+        "rank": runtime.rank,
+        "pid": os.getpid(),
+        "global_step": runtime.global_step,
+        "loss": float(loss.detach().item()),
+        "router_metric": float(router_metric.detach().item()),
+        "process_generation": runtime.process_generation,
+        "recovery_epoch": runtime.recovery_epoch,
+        "recovery_count": runtime.recovery_count,
+        "restart_count": runtime.restart_count,
+        "timestamp_unix_ms": int(time.time() * 1000),
+    }
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, sort_keys=True))
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 def _save_checkpoint(
@@ -849,20 +933,21 @@ def _save_checkpoint(
 
 def _load_checkpoint(
     runtime: HybridRuntime,
-    command: RecoveryCommand,
+    checkpoint_path: str,
+    checkpoint_step: int,
 ) -> None:
-    manifest = read_json(Path(command.checkpoint_path))
+    manifest = read_json(Path(checkpoint_path))
     if manifest is None:
         raise ValueError(
             "cannot read checkpoint manifest: "
-            f"{command.checkpoint_path}"
+            f"{checkpoint_path}"
         )
     if manifest.get("topology_id") != TOPOLOGY_ID:
         raise ValueError("checkpoint topology does not match")
     if manifest.get("world_size") != WORLD_SIZE:
         raise ValueError("checkpoint world size does not match")
-    if manifest.get("checkpoint_step") != command.checkpoint_step:
-        raise ValueError("checkpoint step does not match command")
+    if manifest.get("checkpoint_step") != checkpoint_step:
+        raise ValueError("checkpoint step does not match")
 
     rank_path = Path(manifest["rank_paths"][str(runtime.rank)])
     checkpoint = torch.load(
@@ -1041,7 +1126,11 @@ def _recover(
         recovery_epoch=command.recovery_epoch,
     )
 
-    _load_checkpoint(runtime, command)
+    _load_checkpoint(
+        runtime,
+        command.checkpoint_path,
+        command.checkpoint_step,
+    )
     runtime.model = _wrap_ddp(runtime)
     runtime.model.train()
     runtime.optimizer.zero_grad(set_to_none=True)
@@ -1054,6 +1143,7 @@ def _recover(
         timeout_seconds,
     )
     dist.barrier()
+    runtime.recovery_ready_unix_ms = int(time.time() * 1000)
     _write_status(runtime, "running")
     _log(
         runtime.rank,
@@ -1239,6 +1329,13 @@ def _run_training_segment(
                 and runtime.tp_rank == 0
                 and runtime.dp_rank == 0
             )
+            if is_logger_rank and loss is not None:
+                assert aux_metric is not None
+                _append_loss_metric(
+                    runtime,
+                    loss,
+                    aux_metric,
+                )
             should_log = (
                 interval_steps >= args.log_every
                 or runtime.global_step >= args.steps
@@ -1311,6 +1408,7 @@ def train(args: argparse.Namespace) -> None:
         local_groups=local_groups,
         stage_module=stage_module,
         optimizer=optimizer,
+        process_generation=args.process_generation,
     )
     _write_status(runtime, "initializing")
     watcher_stop = None
@@ -1323,6 +1421,38 @@ def train(args: argparse.Namespace) -> None:
                 args.recovery_timeout_seconds,
             )
             _recover(runtime, args, command, replacement=True)
+        elif args.resume_checkpoint:
+            _bootstrap_topology(
+                runtime,
+                args.recovery_timeout_seconds,
+            )
+            manifest = read_json(Path(args.resume_checkpoint))
+            if manifest is None:
+                raise ValueError(
+                    "cannot read resume checkpoint manifest: "
+                    f"{args.resume_checkpoint}"
+                )
+            checkpoint_step = int(
+                manifest.get("checkpoint_step", -1)
+            )
+            if checkpoint_step < 0:
+                raise ValueError(
+                    "resume checkpoint step is invalid"
+                )
+            _load_checkpoint(
+                runtime,
+                args.resume_checkpoint,
+                checkpoint_step,
+            )
+            runtime.restart_count = 1
+            runtime.model = _wrap_ddp(runtime)
+            runtime.model.train()
+            runtime.recovery_ready_unix_ms = int(time.time() * 1000)
+            _write_status(
+                runtime,
+                "running",
+                resumed_from_checkpoint=args.resume_checkpoint,
+            )
         else:
             _bootstrap_topology(
                 runtime,
@@ -1375,7 +1505,8 @@ def train(args: argparse.Namespace) -> None:
         _log(
             runtime.rank,
             f"finished {runtime.global_step} steps; "
-            f"recoveries={runtime.recovery_count}",
+            f"recoveries={runtime.recovery_count}; "
+            f"restarts={runtime.restart_count}",
         )
     except Exception as error:
         _write_status(runtime, "failed", error=repr(error))
@@ -1397,6 +1528,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--checkpoint-interval", type=int, default=10)
     parser.add_argument("--recovery-command", type=str, default="")
     parser.add_argument("--replacement", action="store_true")
+    parser.add_argument("--resume-checkpoint", type=str, default="")
+    parser.add_argument("--store-path", type=str, default="")
+    parser.add_argument("--process-generation", type=int, default=0)
     parser.add_argument("--dist-timeout-seconds", type=int, default=30)
     parser.add_argument(
         "--recovery-timeout-seconds",
@@ -1411,9 +1545,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     if not torch.cuda.is_available():
-        raise SystemExit("this demo requires eight CUDA devices")
-    if torch.cuda.device_count() < WORLD_SIZE:
-        raise SystemExit("this demo requires eight CUDA devices")
+        raise SystemExit("this demo requires CUDA devices")
+    local_world_size = int(
+        os.getenv("LOCAL_WORLD_SIZE", str(WORLD_SIZE))
+    )
+    if torch.cuda.device_count() < local_world_size:
+        raise SystemExit(
+            f"this worker requires {local_world_size} CUDA devices "
+            f"on its node, found {torch.cuda.device_count()}"
+        )
     work_dir = Path(args.work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     if not args.recovery_command:

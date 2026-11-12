@@ -132,6 +132,10 @@ def _check_local_environment(world_size: int) -> None:
         "recovery_protocol.py",
         "tp2_pp2_dp2/hybrid_moe_train.py",
         "tp2_pp2_dp2/run_in_place_demo.py",
+        "tp2_pp2_dp2/run_recovery_comparison.py",
+        "tp2_pp2_dp2_2nodes/run_node_agent.py",
+        "tp2_pp2_dp2_2nodes/run_node0.sh",
+        "tp2_pp2_dp2_2nodes/run_node1.sh",
     )
     missing_files = [
         name
