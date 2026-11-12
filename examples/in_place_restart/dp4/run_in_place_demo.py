@@ -29,6 +29,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
+EXAMPLE_ROOT = Path(__file__).resolve().parent.parent
+if str(EXAMPLE_ROOT) not in sys.path:
+    sys.path.insert(0, str(EXAMPLE_ROOT))
+
 from recovery_protocol import (
     RecoveryCommand,
     atomic_write_json,

@@ -22,6 +22,7 @@ optimizer on healthy ranks.
 import argparse
 import gc
 import os
+import sys
 import time
 from dataclasses import dataclass
 from datetime import timedelta
@@ -36,6 +37,10 @@ import torch.optim as optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
+
+EXAMPLE_ROOT = Path(__file__).resolve().parent.parent
+if str(EXAMPLE_ROOT) not in sys.path:
+    sys.path.insert(0, str(EXAMPLE_ROOT))
 
 from recovery_protocol import (
     RecoveryCommand,

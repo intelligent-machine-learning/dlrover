@@ -98,9 +98,10 @@ def _check_local_environment(world_size: int) -> None:
     shared_memory_gb = (
         shared_memory.f_bavail * shared_memory.f_frsize
     ) / (1024**3)
+    minimum_shm_gb = max(MIN_SHM_GB, float(world_size))
     _check(
-        f"/dev/shm >= {MIN_SHM_GB:g} GiB",
-        shared_memory_gb >= MIN_SHM_GB,
+        f"/dev/shm >= {minimum_shm_gb:g} GiB",
+        shared_memory_gb >= minimum_shm_gb,
         f"{shared_memory_gb:.2f} GiB",
     )
 
@@ -126,9 +127,11 @@ def _check_local_environment(world_size: int) -> None:
 
     example_dir = Path(__file__).resolve().parent
     required_files = (
-        "moe_train.py",
+        "dp4/moe_train.py",
+        "dp4/run_in_place_demo.py",
         "recovery_protocol.py",
-        "run_in_place_demo.py",
+        "tp2_pp2_dp2/hybrid_moe_train.py",
+        "tp2_pp2_dp2/run_in_place_demo.py",
     )
     missing_files = [
         name
@@ -242,8 +245,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    if args.world_size != 4:
-        raise SystemExit("this prototype requires --world-size=4")
+    if args.world_size not in (4, 8):
+        raise SystemExit("--world-size must be 4 or 8")
 
     print("Container preflight checks")
     _check_local_environment(args.world_size)

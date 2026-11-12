@@ -210,7 +210,7 @@ Please refer to the [DEVELOPMENT](docs/developer_guide.md)
 
 [An Example of Flash Checkpoint.](examples/pytorch/fcp_demo.py)
 
-[A Four-GPU MoE In-Place Restart Prototype.](examples/in_place_restart/README.md)
+[MoE In-Place Restart Prototypes.](examples/in_place_restart/README.md)
 
 [Train a PyTorch Model on Kubernetes.](docs/tutorial/torch_elasticjob_on_k8s.md)
 

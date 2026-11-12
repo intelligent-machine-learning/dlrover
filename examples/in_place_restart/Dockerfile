@@ -49,4 +49,4 @@ assert torch.cuda.nccl.version() >= (2, 28, 0); \
 print('PyTorch', torch.__version__); \
 print('NCCL', torch.cuda.nccl.version())"
 
-CMD ["python", "examples/in_place_restart/run_in_place_demo.py"]
+CMD ["python", "examples/in_place_restart/dp4/run_in_place_demo.py"]

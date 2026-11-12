@@ -1,4 +1,4 @@
-# Four-GPU MoE In-Place Restart Demo
+# MoE In-Place Restart Demos
 
 This example starts with a small replicated-expert MoE model trained with
 DDP. It then demonstrates the first healthy-rank recovery prototype:
@@ -18,7 +18,7 @@ and expert all-to-all recovery in the first prototype.
 
 ## Requirements
 
-- Linux with four NVIDIA GPUs on one host
+- Linux with four GPUs for the DDP demo or eight GPUs for the hybrid demo
 - PyTorch 2.14 or newer
 - The experimental `nccl2` distributed backend
 - NCCL 2.28 or newer; NCCL 2.32 is recommended
@@ -90,7 +90,7 @@ docker build \
 NGC 26.10 contains NCCL 2.32.3 but PyTorch `2.15.0a0`, so rerun the complete
 recovery test before treating that image as supported.
 
-Run the demonstration with all four GPUs:
+Run the four-rank DDP demonstration with all four GPUs:
 
 ```bash
 mkdir -p /tmp/dlrover-moe-artifacts
@@ -99,7 +99,7 @@ docker run --rm \
   --shm-size=16g \
   -v /tmp/dlrover-moe-artifacts:/artifacts \
   dlrover-inplace-moe:26.09 \
-  python examples/in_place_restart/run_in_place_demo.py \
+  python examples/in_place_restart/dp4/run_in_place_demo.py \
   --work-dir /artifacts
 ```
 
@@ -142,12 +142,12 @@ image to a shared cluster, for example:
 nvcr.io/nvidia/pytorch@sha256:<digest>
 ```
 
-## Run the in-place restart demo
+## Four-GPU DDP demo
 
 From the DLRover repository root:
 
 ```bash
-python examples/in_place_restart/run_in_place_demo.py
+python examples/in_place_restart/dp4/run_in_place_demo.py
 ```
 
 The default sequence is:
@@ -205,7 +205,7 @@ The final summary marks ranks 0, 1, and 3 as `CONTINUED` and rank 2 as
 Use a persistent work directory to inspect the artifacts:
 
 ```bash
-python examples/in_place_restart/run_in_place_demo.py \
+python examples/in_place_restart/dp4/run_in_place_demo.py \
   --work-dir /tmp/dlrover-moe-recovery
 ```
 
@@ -220,7 +220,7 @@ and checkpoint restore before testing process-group recovery.
 ```bash
 mkdir -p /tmp/dlrover-moe-baseline
 dlrover-run --standalone --nproc_per_node=4 \
-  examples/in_place_restart/train.py \
+  examples/in_place_restart/dp4/train.py \
   --backend nccl \
   --work-dir /tmp/dlrover-moe-baseline \
   --steps 40 \
@@ -263,9 +263,84 @@ The demonstration rebuilds the DDP wrapper after recovery. This clears any
 partially completed DDP reducer state and is safer for the first prototype.
 It does not rebuild the model or process.
 
+## Eight-GPU TP2 x PP2 x DP2 demo
+
+The [hybrid worker](tp2_pp2_dp2/hybrid_moe_train.py) adds a TP/PP/DP topology:
+
+```text
+World size = 8
+TP = 2
+PP = 2
+DP = 2
+EP = 1
+```
+
+The rank layout is:
+
+```text
+rank = DP * 4 + PP_stage * 2 + TP_rank
+```
+
+The example creates and reconfigures:
+
+```text
+TP groups: [0,1] [2,3] [4,5] [6,7]
+PP groups: [0,2] [1,3] [4,6] [5,7]
+DP groups: [0,4] [1,5] [2,6] [3,7]
+```
+
+Stage 0 owns a TP-sharded embedding. Stage 1 owns TP-sharded MoE experts and
+a TP-sharded output head. `EP=1` means there is no additional expert partition;
+each DP replica contains the full expert set, while each expert's weights are
+split across the TP group. The gradient for the replicated router is reduced
+across the TP group, while each stage synchronizes its local shard across its
+DP group.
+
+Run the eight-GPU demo:
+
+```bash
+ARTIFACT_DIR=$(mktemp -d /tmp/dlrover-hybrid.XXXXXX)
+
+python examples/in_place_restart/tp2_pp2_dp2/run_in_place_demo.py \
+  --work-dir "$ARTIFACT_DIR" \
+  --steps 40 \
+  --checkpoint-interval 10 \
+  --fail-rank 3 \
+  --fail-at-step 23
+```
+
+Rank 3 is `TP1-PP1-DP0`. Its TP, PP, DP, and default groups are all exercised
+during recovery. The healthy ranks retain their PIDs, rank 3 receives a new
+PID, all eight ranks restore their topology-specific checkpoint shards, and
+training resumes from the previous committed checkpoint.
+
+The eight-rank image check is:
+
+```bash
+docker run --rm \
+  --gpus '"device=0,1,2,3,4,5,6,7"' \
+  --shm-size=32g \
+  dlrover-inplace-moe:26.09 \
+  python examples/in_place_restart/verify_image.py --world-size 8
+```
+
+Run the eight-rank recovery demo in the image:
+
+```bash
+ARTIFACT_DIR=$(mktemp -d /tmp/dlrover-hybrid.XXXXXX)
+
+docker run --rm \
+  --gpus '"device=0,1,2,3,4,5,6,7"' \
+  --shm-size=32g \
+  -v "$ARTIFACT_DIR:/artifacts" \
+  dlrover-inplace-moe:26.09 \
+  python examples/in_place_restart/tp2_pp2_dp2/run_in_place_demo.py \
+  --work-dir /artifacts
+```
+
 ## DLRover integration
 
-The local supervisor in this directory models the control-plane work that
+The local supervisor in each job directory models the control-plane work that
 DLRover must perform:
 
 - detect the failed logical rank;
@@ -288,7 +363,9 @@ worker, including rank 0, fails.
 
 - `nccl2`, `_supports_reconfigure`, `_get_reconfigure_handle`, and
   `_reconfigure` are experimental PyTorch APIs.
-- The example supports one default NCCL process group only.
+- The four-rank demo uses only the default group; the eight-rank demo uses
+  the default, TP, PP, and DP groups.
+- The TP2 x PP2 x DP2 demo uses a toy pipeline schedule with one microbatch.
 - The local supervisor injects one failure and does not handle a second rank
   failure during recovery.
 - Experts are replicated; this is not expert-parallel training.
