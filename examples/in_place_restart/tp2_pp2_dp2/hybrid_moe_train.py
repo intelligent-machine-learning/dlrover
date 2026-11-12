@@ -23,8 +23,9 @@ import argparse
 import gc
 import os
 import sys
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -47,6 +48,7 @@ from recovery_protocol import (
     atomic_write_json,
     fresh_reconfigure_uuid,
     load_recovery_command,
+    read_json,
     wait_for_recovery_command,
 )
 
@@ -149,6 +151,11 @@ class HybridRuntime:
     stage_module: nn.Module
     optimizer: optim.Optimizer
     model: Optional[DDP] = None
+    abort_lock: Any = field(
+        default_factory=threading.Lock,
+        repr=False,
+    )
+    aborted_epoch: int = 0
     global_step: int = 0
     epoch: int = 0
     batch_index: int = 0
@@ -269,11 +276,13 @@ class TensorParallelExpert(nn.Module):
             EMBED_DIM,
             local_hidden,
             bias=False,
+            device=device,
         )
         self.down = nn.Linear(
             local_hidden,
             EMBED_DIM,
             bias=False,
+            device=device,
         )
 
         full_up = _seeded_tensor(
@@ -316,7 +325,12 @@ class ParallelMoEStage(nn.Module):
             MODEL_SEED + 100,
             scale=0.02,
         )
-        self.gate = nn.Linear(EMBED_DIM, NUM_EXPERTS, bias=False)
+        self.gate = nn.Linear(
+            EMBED_DIM,
+            NUM_EXPERTS,
+            bias=False,
+            device=device,
+        )
         self.gate.weight.data.copy_(gate_weight.to(device))
 
         self.experts = nn.ModuleList(
@@ -485,7 +499,10 @@ def _require_reconfigure_api() -> None:
         raise RuntimeError("the nccl2 backend is unavailable")
 
 
-def _new_reconfigurable_group(members: Tuple[int, ...]) -> Any:
+def _new_reconfigurable_group(
+    members: Tuple[int, ...],
+    timeout: timedelta,
+) -> Any:
     options = dist.ProcessGroupNCCL.Options()
     options.enable_reconfigure = True
     return dist.new_group(
@@ -493,6 +510,7 @@ def _new_reconfigurable_group(members: Tuple[int, ...]) -> Any:
         backend="nccl2",
         pg_options=options,
         sort_ranks=True,
+        timeout=timeout,
     )
 
 
@@ -538,7 +556,10 @@ def _setup_distributed(
     for spec in specs:
         if spec.category == "default":
             continue
-        group = _new_reconfigurable_group(spec.members)
+        group = _new_reconfigurable_group(
+            spec.members,
+            timedelta(seconds=args.dist_timeout_seconds),
+        )
         if rank in spec.members:
             local_groups[spec.group_id] = group
 
@@ -830,11 +851,12 @@ def _load_checkpoint(
     runtime: HybridRuntime,
     command: RecoveryCommand,
 ) -> None:
-    manifest = torch.load(
-        command.checkpoint_path,
-        map_location="cpu",
-        weights_only=True,
-    )
+    manifest = read_json(Path(command.checkpoint_path))
+    if manifest is None:
+        raise ValueError(
+            "cannot read checkpoint manifest: "
+            f"{command.checkpoint_path}"
+        )
     if manifest.get("topology_id") != TOPOLOGY_ID:
         raise ValueError("checkpoint topology does not match")
     if manifest.get("world_size") != WORLD_SIZE:
@@ -873,14 +895,68 @@ def _load_checkpoint(
     )
 
 
-def _abort_local_groups(runtime: HybridRuntime) -> None:
-    for group_id, group in runtime.local_groups.items():
-        backend = dist.get_backend_impl(
-            group=group,
-            device=runtime.device,
-        )
-        backend.abort()
-        _log(runtime.rank, f"revoked {group_id}")
+def _abort_local_groups(
+    runtime: HybridRuntime,
+    recovery_epoch: int = 0,
+) -> None:
+    with runtime.abort_lock:
+        if (
+            recovery_epoch > 0
+            and recovery_epoch <= runtime.aborted_epoch
+        ):
+            return
+        for group_id, group in runtime.local_groups.items():
+            backend = dist.get_backend_impl(
+                group=group,
+                device=runtime.device,
+            )
+            try:
+                backend.abort()
+                _log(runtime.rank, f"revoked {group_id}")
+            except Exception as error:
+                _log(
+                    runtime.rank,
+                    f"failed to revoke {group_id}: {error}",
+                )
+        runtime.aborted_epoch = recovery_epoch
+
+
+def _start_recovery_watcher(
+    runtime: HybridRuntime,
+    args: argparse.Namespace,
+) -> Tuple[threading.Event, threading.Thread]:
+    stop_event = threading.Event()
+    command_path = Path(args.recovery_command)
+
+    def watch() -> None:
+        seen_epoch = runtime.recovery_epoch
+        while not stop_event.wait(0.2):
+            try:
+                command = load_recovery_command(command_path)
+            except (TypeError, ValueError):
+                continue
+            if (
+                command is not None
+                and command.recovery_epoch > seen_epoch
+            ):
+                _log(
+                    runtime.rank,
+                    f"control watcher observed recovery epoch "
+                    f"{command.recovery_epoch}; revoking local groups",
+                )
+                _abort_local_groups(
+                    runtime,
+                    command.recovery_epoch,
+                )
+                seen_epoch = command.recovery_epoch
+
+    thread = threading.Thread(
+        target=watch,
+        name=f"recovery-watcher-rank-{runtime.rank}",
+        daemon=True,
+    )
+    thread.start()
+    return stop_event, thread
 
 
 def _detach_ddp(runtime: HybridRuntime) -> None:
@@ -927,6 +1003,11 @@ def _recover(
         args.recovery_timeout_seconds,
         remaining,
     )
+    _log(
+        runtime.rank,
+        f"entering recovery epoch {command.recovery_epoch}; "
+        f"replacement={replacement}",
+    )
 
     _write_status(
         runtime,
@@ -934,13 +1015,17 @@ def _recover(
         recovery_epoch=command.recovery_epoch,
     )
     if not replacement:
-        _abort_local_groups(runtime)
+        _abort_local_groups(runtime, command.recovery_epoch)
     _detach_ddp(runtime)
     runtime.optimizer.zero_grad(set_to_none=True)
     _write_status(
         runtime,
         "quiesced",
         recovery_epoch=command.recovery_epoch,
+    )
+    _log(
+        runtime.rank,
+        "local training is quiesced; reconfiguring topology",
     )
 
     _reconfigure_topology(
@@ -1228,6 +1313,8 @@ def train(args: argparse.Namespace) -> None:
         optimizer=optimizer,
     )
     _write_status(runtime, "initializing")
+    watcher_stop = None
+    watcher_thread = None
 
     try:
         if args.replacement:
@@ -1245,6 +1332,9 @@ def train(args: argparse.Namespace) -> None:
             runtime.model.train()
             _save_checkpoint(runtime, args)
             _write_status(runtime, "running")
+            watcher_stop, watcher_thread = (
+                _start_recovery_watcher(runtime, args)
+            )
 
         while runtime.global_step < args.steps:
             try:
@@ -1291,6 +1381,10 @@ def train(args: argparse.Namespace) -> None:
         _write_status(runtime, "failed", error=repr(error))
         raise
     finally:
+        if watcher_stop is not None:
+            watcher_stop.set()
+        if watcher_thread is not None:
+            watcher_thread.join(timeout=2)
         if dist.is_initialized():
             dist.destroy_process_group()
 

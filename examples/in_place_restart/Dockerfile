@@ -25,7 +25,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_CONSTRAINT=/etc/pip/constraint.txt \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/workspace/dlrover \
-    NCCL_ASYNC_ERROR_HANDLING=0 \
     TORCH_NCCL_ASYNC_ERROR_HANDLING=0 \
     TORCH_NCCL_BLOCKING_WAIT=0
 

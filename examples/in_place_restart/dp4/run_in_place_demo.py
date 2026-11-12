@@ -79,7 +79,6 @@ def _launch_worker(
             "OMP_NUM_THREADS": env.get("OMP_NUM_THREADS", "1"),
             # nccl2 owns failure handling in reconfigure mode. Leaving legacy
             # process-abort handling enabled would obscure the demonstration.
-            "NCCL_ASYNC_ERROR_HANDLING": "0",
             "TORCH_NCCL_ASYNC_ERROR_HANDLING": "0",
             "TORCH_NCCL_BLOCKING_WAIT": "0",
         }

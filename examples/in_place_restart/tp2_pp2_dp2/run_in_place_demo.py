@@ -81,7 +81,6 @@ def _launch_worker(
             "MASTER_PORT": str(_find_free_port()),
             "PYTHONUNBUFFERED": "1",
             "OMP_NUM_THREADS": env.get("OMP_NUM_THREADS", "1"),
-            "NCCL_ASYNC_ERROR_HANDLING": "0",
             "TORCH_NCCL_ASYNC_ERROR_HANDLING": "0",
             "TORCH_NCCL_BLOCKING_WAIT": "0",
             "NCCL_DEBUG": env.get("NCCL_DEBUG", "WARN"),
