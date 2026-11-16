@@ -166,13 +166,18 @@ def resolve_group_id(
     - With the default ``schedule`` (None) or its strategy being
       :data:`NodeGroupStrategy.EP_DP_PP`, groups are laid out in ascending
       group-id order, each occupying a contiguous ``[start, end)`` rank range
-      sized by ``group_affinity[group_id]``. This is the existing behavior.
+      sized by ``group_affinity[group_id]``. This is the placement-only
+      behavior running whenever the affinity is decoupled from the
+      parallel topology (``--enable-topology-rerank`` on, or no ep_pp_dp
+      schedule attached).
     - With strategy :data:`NodeGroupStrategy.EP_PP_DP`, the stripe mapping in
-      :func:`_resolve_stripe_group_id` is used instead. This requires a
-      validated topology (see :func:`validate_topology`); as the topology
-      is fixed-size, the rank is asserted to be within
-      ``schedule.num_nodes``. Group ids are opaque: they only label the
-      segments, with the ascending id order fixing the segment order.
+      :func:`_resolve_stripe_group_id` is used instead. This applies only
+      on the legacy coupled path (ep_pp_dp with NO rerank, where the
+      packing IS the layout) and requires a validated topology (see
+      :func:`validate_topology`); as the topology is fixed-size, the rank
+      is asserted to be within ``schedule.num_nodes``. Group ids are
+      opaque: they only label the segments, with the ascending id order
+      fixing the segment order.
 
     Returns ``None`` when group affinity is not configured or the rank
     falls outside the declared worker range. For ``ep_pp_dp``, an

@@ -311,24 +311,30 @@ class DistributedJobManager(JobManager):
     def _init_group_affinity(self, job_args: JobArgs):
         """Validate and apply the ``--group-affinity`` configuration.
 
-        When ``group_affinity`` is configured, the worker replicas declared
-        in the ElasticJob CRD must equal the sum of all group sizes and
-        ``--node-group-strategy`` must be set explicitly; the master fails
-        to start otherwise. On success the mapping is forwarded to the
-        ``JobResource`` so that worker nodes are partitioned into the
-        configured node groups.
+        ``group_affinity`` is a placement-only declaration: the worker
+        replicas declared in the ElasticJob CRD must equal the sum of all
+        group sizes (the master fails to start otherwise), and on success
+        the mapping is forwarded to the ``JobResource`` so that worker
+        nodes are partitioned into the configured scheduling segments
+        (the contiguous ``resolve_group_id`` mapping; pods carry the
+        ``scheduling/rack-group`` labels). It is decoupled from the
+        Megatron parallel sizes (TP/PP/EP/CP): no parallel-size
+        constraint is applied to the declared group sizes, and
+        ``--node-group-strategy`` is no longer required.
 
-        When ``node_group_strategy == ep_pp_dp`` the parallel topology is
-        additionally validated via :func:`validate_topology` and a
-        :class:`NodeGroupSchedule` is attached to the ``JobResource`` so
-        that the scaler packs EP-group slots into ep-pp columns across
-        segments (EP/PP intra-segment, DP cross-segment). The parallel
-        sizes are read from ``job_args`` only when a node-group affinity
-        is configured; an unset ``--expert-tensor-parallel-size`` (None)
-        inherits ``--tensor-model-parallel-size``.
+        ``enable_topology_rerank`` decides the parallel layout: with
+        rerank, the observed psw groups at the training rendezvous
+        decide the world order, and the decelerated affinity only
+        steers the initial pod placement. Without rerank, ``ep_pp_dp``
+        keeps its legacy coupled behavior: the advised topology is
+        validated via :func:`validate_topology` and a
+        :class:`NodeGroupSchedule` is attached to the ``JobResource``
+        so that the scaler packs EP-group slots into ep-pp columns
+        across segments (EP/PP intra-segment, DP cross-segment).
         """
         strategy = getattr(job_args, "node_group_strategy", None)
         ep_pp_dp = strategy == NodeGroupStrategy.EP_PP_DP
+        rerank_enabled = getattr(self, "_topology_rerank_enabled", False)
         if not job_args.group_affinity:
             # --soft-group-affinity configures the groups its own way
             # (unequal sizes) and --enable-topology-rerank carries the
@@ -338,7 +344,7 @@ class DistributedJobManager(JobManager):
             if (
                 strategy is not None
                 and not getattr(job_args, "soft_group_affinity", None)
-                and not getattr(self, "_topology_rerank_enabled", False)
+                and not rerank_enabled
             ):
                 raise ValueError(
                     "--node-group-strategy requires --group-affinity or "
@@ -347,13 +353,6 @@ class DistributedJobManager(JobManager):
                     "strategy itself)."
                 )
             return
-        if strategy is None:
-            raise ValueError(
-                "--group-affinity requires --node-group-strategy to be set "
-                "(ep_dp_pp keeps the contiguous layout; ep_pp_dp packs "
-                "EP-PP columns across groups)."
-            )
-        self._check_expert_tensor_pairing(job_args)
         worker_resource = self._job_resource.node_group_resources.get(
             NodeType.WORKER
         )
@@ -364,12 +363,26 @@ class DistributedJobManager(JobManager):
                 f"--group-affinity requires worker replicas={expected}, "
                 f"but got CRD worker replicas={worker_count}"
             )
+        # Args-level self-consistency (doc: ``etp`` requires ``ep``): the
+        # EP/PP sizes only have a consumer when a strategy or the rerank
+        # is configured; a purely placement-only affinity (no strategy,
+        # no rerank) does not consult them and skips the pairing check.
+        if strategy is not None or rerank_enabled:
+            self._check_expert_tensor_pairing(job_args)
 
-        # For ep_pp_dp, validate the full parallel topology BEFORE mutating any
-        # JobResource state so a violation leaves the resource untouched and
-        # the master fails to start cleanly.
+        # Without --enable-topology-rerank there is no join-time world
+        # reordering, so the ep_pp_dp packing IS the layout: keep the
+        # legacy coupled behavior (validate the EP/PP/DP parallel topology
+        # against the declared segment sizes and attach the NodeGroupSchedule
+        # so the scaler packs EP-group slots into ep-pp columns). With
+        # rerank enabled the declared affinity steers the initial pod
+        # placement only (placement-only mode): no NodeGroupSchedule is
+        # attached, resolve_group_id keeps the contiguous mapping, and the
+        # observed psw groups decide the final world order. In both cases
+        # validate BEFORE mutating any JobResource state so a violation
+        # leaves the resource untouched and the master fails cleanly.
         schedule = None
-        if ep_pp_dp:
+        if ep_pp_dp and not rerank_enabled:
             ranks_per_node = (
                 worker_resource.node_resource.gpu_num
                 if worker_resource is not None
@@ -414,6 +427,24 @@ class DistributedJobManager(JobManager):
                 schedule.ranks_per_node,
                 len(job_args.group_affinity),
                 schedule.etp * schedule.ep,
+                len(job_args.group_affinity),
+            )
+        elif ep_pp_dp:
+            logger.info(
+                "group-affinity is placement-only with --enable-topology-"
+                "rerank: the declared %d segments (ids %s) steer the "
+                "initial pod labels via the contiguous resolver; no "
+                "EP/PP/DP validation runs and no NodeGroupSchedule is "
+                "attached — the rendezvous world order is recomputed from "
+                "the psw topology observed at join time.",
+                len(job_args.group_affinity),
+                sorted(job_args.group_affinity.keys()),
+            )
+        else:
+            logger.info(
+                "group-affinity without a strategy: the declared %d groups "
+                "only steer the initial pod labels via the contiguous "
+                "resolver; no parallel-size coupling applies.",
                 len(job_args.group_affinity),
             )
 
