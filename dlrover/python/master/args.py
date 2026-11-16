@@ -151,24 +151,28 @@ def _build_master_args_parser():
         help='Node group sizes, e.g. --group-affinity="{0: 10, 1: 15}" '
         "means group 0 has 10 pods and group 1 has 15 pods. The worker "
         "replicas in the ElasticJob CRD must equal the sum of all group "
-        "sizes, otherwise the master fails to start.",
+        "sizes, otherwise the master fails to start. Placement-only: the "
+        "sizes are NOT coupled to the Megatron parallel sizes, and no "
+        "EP/PP/DP layout validation is applied to them when "
+        "--enable-topology-rerank is on (the EP-PP column packing runs "
+        "only on the legacy ep_pp_dp-without-rerank path).",
     )
     parser.add_argument(
         "--node-group-strategy",
         "--node_group_strategy",
         default=None,
         choices=["ep_dp_pp", "ep_pp_dp"],
-        help="Strategy used to map worker nodes (by creation order) into "
-        "node groups (== physical segments). 'ep_dp_pp' keeps the existing "
-        "behavior: groups occupy contiguous rank ranges. 'ep_pp_dp' packs "
-        "EP-group slots of a Megatron MoE pipeline stage into ep-pp columns "
-        "across groups so EP groups and PP stay intra-segment while only "
-        "the dense DP collective crosses segments. Required when "
-        "--group-affinity or --soft-group-affinity is configured; setting "
-        "a strategy with neither affinity is rejected, unless "
-        "--enable-topology-rerank is set (the rerank carries the "
-        "strategy itself). The parallel sizes below are consulted only "
-        "when a node-group affinity is configured.",
+        help="Strategy steering the EP/PP/DP layout. 'ep_dp_pp' keeps the "
+        "contiguous layout. 'ep_pp_dp' packs EP-group slots of a Megatron "
+        "MoE pipeline stage into ep-pp columns across segments so EP "
+        "groups and PP stay intra-segment while only the dense DP "
+        "collective crosses segments. With --enable-topology-rerank the "
+        "observed psw topology (not the strategy packing) decides the "
+        "world order and the strategy only selects the packing policy; "
+        "a strategy no longer requires --group-affinity (the rerank "
+        "carries the strategy itself), and --group-affinity may also be "
+        "set alone (placement-only, no strategy) since the parallel "
+        "sizes are decoupled from the groups.",
     )
     parser.add_argument(
         "--tensor-model-parallel-size",
@@ -185,8 +189,9 @@ def _build_master_args_parser():
         "--pp",
         default=1,
         type=pos_int,
-        help="Pipeline-parallel size. Consulted when a node-group affinity "
-        "is configured.",
+        help="Pipeline-parallel size. Consulted by "
+        "--enable-topology-rerank and the legacy ep_pp_dp node-group "
+        "schedule (no rerank).",
     )
     parser.add_argument(
         "--expert-model-parallel-size",
@@ -194,8 +199,9 @@ def _build_master_args_parser():
         "--ep",
         default=1,
         type=pos_int,
-        help="Expert-model-parallel size. Consulted when a node-group "
-        "affinity is configured; the EP group size is --etp * --ep.",
+        help="Expert-model-parallel size. Consulted by "
+        "--enable-topology-rerank and the legacy ep_pp_dp node-group "
+        "schedule (no rerank); the EP group size is --etp * --ep.",
     )
     parser.add_argument(
         "--expert-tensor-parallel-size",
@@ -207,8 +213,8 @@ def _build_master_args_parser():
         "--tensor-model-parallel-size. When set explicitly it must be "
         "used together with --expert-model-parallel-size; the real EP "
         "group size is expert-tensor-parallel-size * "
-        "expert-model-parallel-size. Consulted when a node-group affinity "
-        "is configured.",
+        "expert-model-parallel-size. Consulted by --enable-topology-rerank "
+        "and the legacy ep_pp_dp node-group schedule (no rerank).",
     )
     parser.add_argument(
         "--context-parallel-size",
@@ -253,10 +259,11 @@ def _build_master_args_parser():
         "sizes) so EP/PP communication groups stay intra-psw as much as "
         "possible. Requires --node-group-strategy and the parallel "
         "sizes; may be combined with --group-affinity or "
-        "--soft-group-affinity: the declared groups then steer the "
-        "initial pod placement (labels) while the observed psw groups "
-        "decide the final world order, and the failover drift is "
-        "absorbed by the next rerank (single-pod relaunch keeps its "
+        "--soft-group-affinity: the declared groups then only steer the "
+        "initial pod placement (labels), the EP/PP/DP layout is NOT "
+        "validated against the declared sizes, and the observed psw "
+        "groups decide the final world order, while the failover drift "
+        "is absorbed by the next rerank (single-pod relaunch keeps its "
         "group labels). Only the world ORDER changes (node_rank "
         "values stay the stable pod identity).",
     )

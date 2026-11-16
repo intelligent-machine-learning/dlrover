@@ -388,14 +388,80 @@ class DistributedJobManagerTest(unittest.TestCase):
         self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
         self.assertIsNone(manager._job_resource.node_group_schedule)
 
-    def test_init_group_affinity_requires_strategy(self):
-        # group-affinity configured without the strategy is a hard error.
+    def test_init_group_affinity_without_strategy_placement_only(self):
+        # Since the placement-only decoupling, --group-affinity works
+        # standalone (without --node-group-strategy): it only partitions
+        # the worker pods into scheduling segments and no schedule is
+        # attached.
         manager = self._new_manager_with_worker_count(25)
-        with self.assertRaisesRegex(
-            ValueError, "requires --node-group-strategy"
-        ):
+        manager._init_group_affinity(
+            SimpleNamespace(group_affinity={0: 10, 1: 15})
+        )
+        self.assertEqual(manager._job_resource.group_affinity, {0: 10, 1: 15})
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_placement_only_with_rerank(self):
+        # ep_pp_dp WITH --enable-topology-rerank: the declared affinity
+        # steers the initial pod placement only. Parallel sizes that
+        # violate the previously mandatory ep_pp_dp topology (here
+        # dense_dp=G=... never even validates) must NOT fail the master;
+        # no NodeGroupSchedule is attached so resolve_group_id keeps the
+        # contiguous mapping.
+        manager = self._new_manager_with_worker_count(24, gpu_num=8)
+        manager._topology_rerank_enabled = True
+        manager._init_group_affinity(
+            SimpleNamespace(
+                group_affinity={0: 8, 1: 8, 2: 8},
+                node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+                tensor_model_parallel_size=1,
+                pipeline_model_parallel_size=3,
+                expert_model_parallel_size=8,
+                context_parallel_size=1,
+            )
+        )
+        self.assertEqual(
+            manager._job_resource.group_affinity, {0: 8, 1: 8, 2: 8}
+        )
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_placement_only_sizes_independent(self):
+        # The placement-only path does not even require the group sizes
+        # to divide anything: arbitrary sizes are accepted with rerank.
+        manager = self._new_manager_with_worker_count(1152, gpu_num=8)
+        manager._topology_rerank_enabled = True
+        sizes = {3: 128, 5: 128, 7: 128, 11: 256, 17: 512}
+        manager._init_group_affinity(
+            SimpleNamespace(
+                group_affinity=dict(sizes),
+                node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+                pipeline_model_parallel_size=4,
+                expert_model_parallel_size=17,
+                context_parallel_size=1,
+            )
+        )
+        self.assertEqual(manager._job_resource.group_affinity, sizes)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
+
+    def test_init_group_affinity_ep_pp_dp_without_rerank_still_validates(
+        self,
+    ):
+        # Backward compatibility: ep_pp_dp with an affinity but WITHOUT
+        # --enable-topology-rerank keeps the coupled behavior — the
+        # topology is validated and the schedule is attached (the EP-PP
+        # packing is then the layout, not the rerank).
+        manager = self._new_manager_with_worker_count(24, gpu_num=8)
+        sizes = {0: 8, 1: 8, 2: 8}
+        with self.assertRaisesRegex(ValueError, "EP group size"):
             manager._init_group_affinity(
-                SimpleNamespace(group_affinity={0: 10, 1: 15})
+                SimpleNamespace(
+                    group_affinity=dict(sizes),
+                    node_group_strategy=NodeGroupStrategy.EP_PP_DP,
+                    pipeline_model_parallel_size=1,
+                    # EP group 5*3=15 does not divide S=dense_dp/G=64 and
+                    # is too large for the segment block.
+                    expert_model_parallel_size=5,
+                    context_parallel_size=1,
+                )
             )
         self.assertIsNone(manager._job_resource.group_affinity)
         self.assertIsNone(manager._job_resource.node_group_schedule)
@@ -756,9 +822,11 @@ class DistributedJobManagerTest(unittest.TestCase):
     def test_init_group_affinity_rerank_coexist_via_job_manager_init(
         self,
     ):
-        # End-to-end coexistence: the declared hard groups steer the
-        # initial pod placement (labels) while the rerank reorders the
-        # world from the psw topology observed at the rendezvous.
+        # End-to-end coexistence (placement-only affinity): the declared
+        # hard groups steer the initial pod placement (labels) while the
+        # rerank reorders the world from the psw topology observed at the
+        # rendezvous; no ep_pp_dp schedule is attached so the contiguous
+        # resolver labels the pods and the ranks-per-node check is off.
         params = MockK8sAllreduceJobArgs()
         params.initilize(16)
         params.enable_topology_rerank = True
@@ -771,9 +839,9 @@ class DistributedJobManagerTest(unittest.TestCase):
         manager = create_job_manager(params, PerfMonitor())
         self.assertTrue(manager._topology_rerank_enabled)
         self.assertEqual(manager._job_resource.group_affinity, {0: 8, 1: 8})
-        self.assertIsNotNone(manager._job_resource.node_group_schedule)
+        self.assertIsNone(manager._job_resource.node_group_schedule)
         self.assertIsNone(manager._job_resource.soft_group_schedule)
-        self.assertEqual(manager.get_expected_ranks_per_node(), 8)
+        self.assertIsNone(manager.get_expected_ranks_per_node())
 
     def test_init_soft_group_rerank_coexist_via_job_manager_init(self):
         # End-to-end coexistence: the declared soft groups steer the
