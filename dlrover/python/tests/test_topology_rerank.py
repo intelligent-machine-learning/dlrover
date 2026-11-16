@@ -217,6 +217,78 @@ class GroupSequenceTest(unittest.TestCase):
             [0, 0, 1, 1, 0, 1, 0, 0, 2, 2, 2, 3],
         )
 
+    def test_ep_pp_dp_residues_pack_into_two_segment_columns(self):
+        # 9 psws x 128 nodes, pp=12 and ep_workers=4 (the ling-max scale):
+        # each psw holds 32 slots, so 18 pure columns consume 24 slots of
+        # every psw and the leftover 9 x 8 slots make 6 residue columns.
+        # The residue packing accumulates smallest-first and spends each
+        # fragment group inside exactly two columns, so ALL 6 residue
+        # columns are strictly two-segment ([4|8] pairings, zero
+        # three-segment columns) and the PP p2p boundaries that cross
+        # segments stay minimal (6, one per residue column).
+        sizes = {i: 128 for i in range(9)}
+        pp, ep_workers = 12, 4
+        sequence = _ep_pp_dp_group_sequence(sizes, pp, ep_workers)
+        self.assertEqual(len(sequence), sum(sizes.values()))
+        columns = (sum(sizes.values()) // pp) // ep_workers
+        # slot (stage, col) = the ep_workers nodes of the s-th slot of
+        # every column (stage-major flatten)
+        slot_groups = {}
+        for stage in range(pp):
+            for col in range(columns):
+                start = stage * columns * ep_workers + col * ep_workers
+                slot_groups[(stage, col)] = set(
+                    sequence[start : start + ep_workers]
+                )
+        # every EP slot stays inside one psw group
+        for key, groups_in_slot in slot_groups.items():
+            self.assertEqual(len(groups_in_slot), 1, key)
+        # every PP column spans at most 2 segments; all 9 x 8 residue
+        # slots pack into exactly 6 two-segment columns
+        col_groups = {}
+        for col in range(columns):
+            groups = set()
+            for stage in range(pp):
+                groups |= slot_groups[(stage, col)]
+            col_groups[col] = groups
+        mixed = [c for c in range(columns) if len(col_groups[c]) > 1]
+        self.assertEqual(len(mixed), 6)
+        for col, groups in col_groups.items():
+            self.assertLessEqual(
+                len(groups),
+                2,
+                f"column {col} spans {len(groups)} groups",
+            )
+        cross_boundaries = 0
+        for col in range(columns):
+            stage_seq = [next(iter(slot_groups[(s, col)])) for s in range(pp)]
+            cross_boundaries += sum(
+                1 for s in range(pp - 1) if stage_seq[s] != stage_seq[s + 1]
+            )
+        self.assertEqual(cross_boundaries, 6)
+
+    def test_ep_pp_dp_residue_column_accumulates_smallest_first(self):
+        # Every group holds fewer slots than a whole column: the residue
+        # packing accumulates from the SMALLEST remaining group (ties by
+        # the smallest id), so the fragment of a half-used group comes
+        # back as the next smallest and finishes inside the very next
+        # column. 4 groups x 2 slots on pp=3: col0 = [0,0,1], col1 =
+        # [1,2,2] and the two leftover whole slots drain to the tail as
+        # [3,3] (the pre-existing tail behavior).
+        self.assertEqual(
+            _ep_pp_dp_group_sequence(
+                {0: 2, 1: 2, 2: 2, 3: 2}, pp=3, ep_workers=1
+            ),
+            [0, 1, 0, 2, 1, 2, 3, 3],
+        )
+
+    def test_ep_pp_dp_sort_empty_nodes_keeps_empty(self):
+        # A no-node rendezvous keeps the empty mapping (early return).
+        sorter = GroupTopologySorter(
+            strategy=NodeGroupStrategy.EP_PP_DP, pp=2, ep=8
+        )
+        self.assertEqual(sorter.sort({}), {})
+
 
 class GroupTopologySorterTest(unittest.TestCase):
     def test_ep_dp_pp_groups_are_contiguous(self):
