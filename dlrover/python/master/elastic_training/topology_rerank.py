@@ -160,13 +160,22 @@ def _ep_pp_dp_group_sequence(
     The world is cut into COLUMNS: a column holds ``pp`` EP slots and
     spans all the pipeline stages of one Megatron PP column, and an EP
     slot is ``ep_workers`` consecutive nodes of one EP communication
-    group. Each column is filled by a greedy that repeatedly takes slots
-    from the group with the MOST remaining whole slots (ties broken by
-    the smallest group id): a group with at least ``pp`` remaining slots
-    fills whole columns alone so its PP stages never leave the psw, and
-    only residual fragments share a column. The columns are flattened
-    stage-major: pipeline stage ``s`` consumes the s-th slot of every
-    column.
+    group. Columns come in two filling phases:
+
+    - Whole columns: while some group holds at least all the slots the
+      column still needs, the largest-remaining group (ties broken by
+      the smallest group id) fills it alone, so its PP stages never
+      leave the psw (pure columns).
+    - Residue columns: once no group can own the rest of a column, the
+      column accumulates from the SMALLEST remaining group (ties by the
+      smallest group id). Smallest-first pairing keeps every fragment
+      group fully consumed inside exactly two columns: e.g. 9 psws x 8
+      leftover slots pack into 6 strictly two-segment columns ([4|8]
+      each) instead of drifting into a three-segment column, which
+      minimizes the PP p2p boundaries that cross segments.
+
+    The columns are flattened stage-major: pipeline stage ``s`` consumes
+    the s-th slot of every column.
 
     Unlike the --soft-group-affinity path there is NO alignment
     constraint here: the group sizes are the observed per-psw node
@@ -196,11 +205,31 @@ def _ep_pp_dp_group_sequence(
     for _ in range(columns):
         slots: List[int] = []
         while len(slots) < pp and any(v > 0 for v in remaining.values()):
-            group_id = max(
+            need = pp - len(slots)
+            max_key = max(
                 sorted(remaining.keys()),
                 key=lambda k: (remaining[k], -k),
             )
-            take = min(remaining[group_id], pp - len(slots))
+            if remaining[max_key] >= need:
+                # Whole-column take: this group owns the rest of the
+                # column alone, so its PP stages stay inside the psw.
+                group_id, take = max_key, need
+            else:
+                # Residue column: no group can own the rest. Accumulate
+                # from the SMALLEST remaining group (ties by the smallest
+                # id) so each fragment group is spent inside (at most) two
+                # columns: a group taken as the 4-slot head half comes
+                # back as the next smallest and is finished there, and the
+                # residue columns then stay two-segment whenever the sizes
+                # allow it.
+                # The smallest non-empty remaining only; zero-remaining
+                # groups must stay excluded so every take advances the
+                # packing.
+                group_id = min(
+                    (k for k, v in remaining.items() if v > 0),
+                    key=lambda k: (remaining[k], k),
+                )
+                take = min(remaining[group_id], need)
             slots.extend([group_id] * take)
             remaining[group_id] -= take
         column_slots.append(slots)
