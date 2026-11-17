@@ -1,0 +1,2 @@
+# PyTorch 2.14 provides the experimental nccl2 reconfigure APIs.
+torch>=2.14.0
