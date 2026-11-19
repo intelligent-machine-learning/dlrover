@@ -42,6 +42,11 @@ from dlrover.python.diagnosis.common.diagnosis_data import DiagnosisData
 from dlrover.python.util.common_util import find_free_port
 from dlrover.python.util.function_util import retry
 
+# Truncate error payloads before sending to the master to prevent the master
+# from allocating large gRPC receive buffers and accumulating data in Node
+# objects across relaunches.
+_MAX_ERROR_DATA_LEN = 2048
+
 
 class MasterClient(Singleton, ABC):
     """MasterClient provides some APIs connect with the master
@@ -393,6 +398,24 @@ class MasterClient(Singleton, ABC):
             logger.warning("Fail to query the number of waiting nodes.")
             return 0
 
+    def exec_opt_res_plan_ready(self):
+        request=comm.ExecBrainResourcePlanRequest()
+        try:
+            result: comm.ExecBrainResourcePlanReady=self._get(request)
+            return result.exec_opt_resource_plan_ready
+        except Exception:
+            logger.warning("Fail to get resouce from brain")
+            return comm.ExecBrainResourcePlanReady().exec_opt_resource_plan_ready
+    
+    def get_gpus_from_brain_resource_plan(self):
+        request=comm.BrainOptGpusRequest()
+        try:
+            result: comm.BrainOptGpus=self._get(request)
+            return result.gpu_num
+        except Exception:
+            logger.warning("Fail to get adjust gpus from brain")
+            return comm.BrainOptGpus().gpu_num
+
     def join_rendezvous(self, node_rank, local_world_size, rdzv_name=""):
         request = comm.JoinRendezvousRequest(
             node_id=self._node_id,
@@ -536,6 +559,14 @@ class MasterClient(Singleton, ABC):
             action_cls=action.__class__.__name__,
             action_content=action.to_json(),
         )
+        self._report(message)
+
+    def set_save_ckpt_status(self, ckpt_save_ready, reason=""):
+        message = comm.SaveCheckpointReady(ckpt_save_ready=ckpt_save_ready, reason=reason)
+        self._report(message)
+
+    def set_param_tunning_ready(self, param_tunning_ready):
+        message = comm.ParamTunningReady(param_tunning_ready=param_tunning_ready)
         self._report(message)
 
     @classmethod

@@ -132,7 +132,7 @@ class ResourcePlan(JsonSerializable):
 
 
 class ResourceOptimizer(metaclass=ABCMeta):
-    def __init__(self, job_uuid, resource_limits: ResourceLimits):
+    def __init__(self, job_uuid, resource_limits: ResourceLimits, **kwargs):
         self._job_uuid = job_uuid
         self._resource_limits = resource_limits
 

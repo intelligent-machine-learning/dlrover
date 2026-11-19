@@ -18,6 +18,7 @@ from dlrover.python.common.constants import (
     Accelerators,
     DistributionStrategy,
     NodeType,
+    ElasticDimension,
 )
 from dlrover.python.common.node import NodeGroupResource, NodeResource
 from dlrover.python.common.serialize import JsonSerializable
@@ -149,6 +150,9 @@ class JobArgs(JsonSerializable):
         # pod placement (labels), while the observed psw groups decide
         # the final world order.
         self.enable_topology_rerank: bool = False
+
+        self.elastic_dimension = ElasticDimension.HORIZONTAL
+        self.configmap_manual_scale_switch = "off"
 
     @abstractmethod
     def initilize(self):

@@ -21,6 +21,9 @@ from dlrover.brain.python.common.job import (
 from dlrover.brain.python.optimization.optimizer.base_optimizer import (
     BaseOptimizer,
 )
+from dlrover.brain.python.optimization.optimizer.configmap_manual_optimizer import (
+    ConfigMapManualOptimizer,
+)
 from dlrover.brain.python.common.log import default_logger as logger
 from dlrover.brain.python.optimization.optimizer_router import OptimizerRouter
 
@@ -39,6 +42,7 @@ class OptimizerManager:
 
     def register_optimizers(self):
         self.optimizers[BaseOptimizer.get_name()] = BaseOptimizer()
+        self.optimizers[ConfigMapManualOptimizer.get_name()] = ConfigMapManualOptimizer()
 
     def optimize(
         self, job: JobMeta, conf: OptimizeConfig
@@ -49,7 +53,7 @@ class OptimizerManager:
             return None
 
         try:
-            plan = self.optimizers[conf.optimizer_name].optimize(job)
+            plan = self.optimizers[conf.optimizer_name].optimize(job, conf)
             return plan
         except Exception as e:
             logger.warning(f"Fail to optimize {job.uuid}: {e}")
