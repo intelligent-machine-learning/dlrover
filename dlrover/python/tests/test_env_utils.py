@@ -146,6 +146,66 @@ class EnvUtilsTest(unittest.TestCase):
             self.assertFalse(success)
             self.assertIn("unexpected error", stack)
 
+    def test_dump_cuda_kernel_trace(self):
+        test_content = "cuda kernel dump content"
+
+        # successful case: check the cuda-gdb command layout
+        with mock.patch("subprocess.Popen") as mock_popen:
+            mock_proc = mock.MagicMock()
+            mock_proc.returncode = 0
+            mock_proc.communicate.return_value = (test_content, "")
+            mock_popen.return_value = mock_proc
+
+            success, content = env_utils.dump_cuda_kernel_trace(12345, 120)
+            self.assertTrue(success)
+            self.assertEqual(test_content, content)
+            cmd = mock_popen.call_args.args[0]
+            self.assertEqual(cmd[0], "cuda-gdb")
+            self.assertIn("attach 12345", " ".join(cmd))
+            self.assertIn("info cuda kernels", " ".join(cmd))
+            self.assertIn("thread apply all bt 12", " ".join(cmd))
+            mock_proc.communicate.assert_called_once_with(timeout=120)
+
+        # failure case: non-zero returncode keeps stderr for diagnosis
+        with mock.patch("subprocess.Popen") as mock_popen:
+            mock_proc = mock.MagicMock()
+            mock_proc.returncode = 1
+            mock_proc.communicate.return_value = ("", "Attach failed")
+            mock_popen.return_value = mock_proc
+
+            success, content = env_utils.dump_cuda_kernel_trace(12345, 120)
+            self.assertFalse(success)
+            self.assertIn("Attach failed", content)
+
+        # timeout case: cuda-gdb is killed with SIGKILL and the partial
+        # output produced before the timeout is still returned
+        with mock.patch("subprocess.Popen") as mock_popen:
+            mock_proc = mock.MagicMock()
+            mock_proc.communicate.side_effect = [
+                subprocess.TimeoutExpired("cuda-gdb", 120),
+                ("partial backtrace output", "timeout stderr"),
+            ]
+            mock_popen.return_value = mock_proc
+
+            success, content = env_utils.dump_cuda_kernel_trace(12345, 120)
+            mock_proc.kill.assert_called_once()
+            self.assertFalse(success)
+            self.assertIn("partial backtrace output", content)
+            self.assertIn("timed out (pid=12345, timeout=120)", content)
+            self.assertIn("timeout stderr", content)
+
+        # cuda-gdb not installed case
+        with mock.patch("subprocess.Popen", side_effect=FileNotFoundError()):
+            success, content = env_utils.dump_cuda_kernel_trace(12345, 120)
+            self.assertFalse(success)
+            self.assertIn("not installed", content)
+
+        # generic exception
+        with mock.patch("subprocess.Popen", side_effect=RuntimeError("e")):
+            success, content = env_utils.dump_cuda_kernel_trace(12345, 120)
+            self.assertFalse(success)
+            self.assertIn("unexpected error", content)
+
     def test_get_all_child_pids(self):
         mock_parent_process = mock.MagicMock()
         mock_child1 = mock.MagicMock()

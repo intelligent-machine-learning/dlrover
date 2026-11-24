@@ -617,6 +617,68 @@ class ElasticTrainingAgentTest(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    @patch(
+        "dlrover.python.elastic_agent.torch.training."
+        "env_utils.dump_cuda_kernel_trace"
+    )
+    def test_dump_kernel(self, mock_dump):
+        agent = ElasticTrainingAgent(
+            node_rank=0,
+            config=self.config,
+            entrypoint="echo",
+            spec=self.spec,
+            start_method=self.config.start_method,
+            exit_barrier_timeout=1,
+        )
+
+        # no local training process
+        agent._pcontext = None
+        agent._dump_kernel()
+        self.assertEqual(mock_dump.call_count, 0)
+
+        # failed to get the local training pids
+        agent._pcontext = mock.MagicMock()
+        agent._pcontext.pids.side_effect = Exception("no pids")
+        agent._dump_kernel()
+        self.assertEqual(mock_dump.call_count, 0)
+
+        # dump each training process concurrently and print the outputs
+        agent._pcontext.pids = mock.MagicMock(return_value={0: 1001, 1: 1002})
+        traces = {
+            1001: (True, "cuda-gdb output of 1001"),
+            1002: (True, "cuda-gdb output of 1002"),
+        }
+        mock_dump.side_effect = lambda pid, timeout: traces[pid]
+
+        with mock.patch("builtins.print") as mock_print:
+            agent._dump_kernel()
+
+        self.assertEqual(mock_dump.call_count, 2)
+        called_pids = [call.args[0] for call in mock_dump.call_args_list]
+        self.assertEqual(sorted(called_pids), [1001, 1002])
+        for call in mock_dump.call_args_list:
+            self.assertEqual(
+                call.args[1], DiagnosisConstant.DUMP_KERNEL_TIMEOUT_SECS
+            )
+        printed = "\n".join(
+            str(call.args[0]) for call in mock_print.call_args_list
+        )
+        self.assertIn("[dump_kernel] local_rank=0 pid=1001", printed)
+        self.assertIn("cuda-gdb output of 1001", printed)
+        self.assertIn("[dump_kernel] local_rank=1 pid=1002", printed)
+
+        # a failed dump is printed too
+        mock_dump.side_effect = lambda pid, timeout: (
+            False,
+            f"cuda-gdb timed out (pid={pid}, timeout={timeout})",
+        )
+        with mock.patch("builtins.print") as mock_print:
+            agent._dump_kernel()
+        printed = "\n".join(
+            str(call.args[0]) for call in mock_print.call_args_list
+        )
+        self.assertIn("timed out (pid=1001", printed)
+
     @patch("dlrover.python.elastic_agent.torch.training.psutil.Process")
     @patch("dlrover.python.common.env_utils.get_all_child_pids")
     @patch("dlrover.python.common.env_utils.get_kernel_stack")
