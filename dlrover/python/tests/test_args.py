@@ -73,6 +73,26 @@ class ArgsTest(unittest.TestCase):
         original_args = [
             "--job_name",
             "test",
+            "--hang_detection",
+            "2",
+            "--hang_dump_kernel",
+            "true",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertEqual(parsed_args.hang_detection, 2)
+        self.assertTrue(parsed_args.hang_dump_kernel)
+
+        # default
+        original_args = [
+            "--job_name",
+            "test",
+        ]
+        parsed_args = parse_master_args(original_args)
+        self.assertFalse(parsed_args.hang_dump_kernel)
+
+        original_args = [
+            "--job_name",
+            "test",
             "--xpu_type",
             "nvidia",
         ]

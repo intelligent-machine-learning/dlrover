@@ -603,6 +603,7 @@ class DiagnosticianTest(unittest.TestCase):
         )
 
         # test resolve
+        mock_dlrover_context.hang_dump_kernel = False
         mock_nodes = {
             0: Node(node_type=NodeType.WORKER, node_id=0),
             1: Node(node_type=NodeType.WORKER, node_id=1),
@@ -664,6 +665,73 @@ class DiagnosticianTest(unittest.TestCase):
                 self.assertEqual(
                     action.event_labels.get("type", ""), "BY_OTHER_METRIC"
                 )
+
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang."
+        "get_event_reporter"
+    )
+    @patch("dlrover.python.diagnosis.diagnostician.training_hang._job_context")
+    @patch(
+        "dlrover.python.diagnosis.diagnostician.training_hang._dlrover_context"
+    )
+    def test_training_hang_resolve_broadcasts_dump_kernel(
+        self, mock_dlrover_context, mock_job_context, mock_get_reporter
+    ):
+        job_args = JobArgs("local", "test", "test")
+        diagnostician = TrainingHangDiagnostician(
+            job_args, DiagnosisDataManager()
+        )
+        mock_reporter = MagicMock()
+        mock_get_reporter.return_value = mock_reporter
+        mock_nodes = {
+            0: Node(node_type=NodeType.WORKER, node_id=0),
+            1: Node(node_type=NodeType.WORKER, node_id=1),
+        }
+        mock_job_context.job_nodes_by_type = MagicMock(return_value=mock_nodes)
+        mock_job_context.job_node_by_rank = MagicMock(return_value=None)
+        mock_dlrover_context.hang_detection = 1
+
+        def get_dump_actions(actions):
+            return [
+                action
+                for action in actions
+                if isinstance(action, NodeAction)
+                and action.action_type == DiagnosisActionType.DUMP_KERNEL
+            ]
+
+        problem = DiagnosisObservation(
+            observation=DiagnosisErrorConstant.TRAINING_IS_HANG,
+            extra_infos={"TYPE": "BY_OTHER_METRIC"},
+        )
+
+        # hang_dump_kernel disabled: no dump-kernel action
+        mock_dlrover_context.hang_dump_kernel = False
+        actions = diagnostician.resolve(problem)
+        self.assertEqual(len(get_dump_actions(actions)), 0)
+
+        # hang_dump_kernel enabled: dump actions come before any other
+        # hang action (e.g. notify event), one per non-released worker node
+        mock_dlrover_context.hang_dump_kernel = True
+        actions = diagnostician.resolve(problem)
+        dump_actions = get_dump_actions(actions)
+        self.assertEqual(len(dump_actions), len(mock_nodes))
+        self.assertEqual(
+            [action.instance for action in dump_actions],
+            list(mock_nodes.keys()),
+        )
+        self.assertEqual(
+            actions[0].action_type, DiagnosisActionType.DUMP_KERNEL
+        )
+        self.assertTrue(len(actions) > len(dump_actions))
+
+        # no duplicated dump-kernel actions within the same hang episode
+        actions = diagnostician.resolve(problem)
+        self.assertEqual(len(get_dump_actions(actions)), 0)
+
+        # a new hang episode broadcasts the dump-kernel action again
+        diagnostician._dump_kernel_triggered = False
+        actions = diagnostician.resolve(problem)
+        self.assertEqual(len(get_dump_actions(actions)), len(mock_nodes))
 
     @patch(
         "dlrover.python.diagnosis.diagnostician.training_hang."

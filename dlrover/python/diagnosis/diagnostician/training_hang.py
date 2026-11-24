@@ -71,6 +71,10 @@ class TrainingHangDiagnostician(Diagnostician):
         # into the #fault_detect event payload via observe()→extra_infos.
         self._last_hang_node_rank = ""
         self._last_hang_time_last = ""
+        # True once a dump_kernel round has been broadcast in the current
+        # hang episode, to avoid re-attaching cuda-gdb to a job that stays
+        # hung. Reset when the job is diagnosed as no longer hung.
+        self._dump_kernel_triggered = False
 
     def observe(self, **kwargs) -> Optional[DiagnosisObservation]:
         # analyze xpu_timer metrics 1st
@@ -95,6 +99,7 @@ class TrainingHangDiagnostician(Diagnostician):
                 extra_infos={"TYPE": "BY_OTHER_METRIC"},
             )
 
+        self._dump_kernel_triggered = False
         return None
 
     def resolve(
@@ -122,6 +127,33 @@ class TrainingHangDiagnostician(Diagnostician):
                 logger.warning(f"report_fault_detect failed: {exc}")
 
             actions: List[DiagnosisAction] = []
+
+            # broadcast a dump-kernel action to all worker nodes before any
+            # other hang action, so agents dump the CUDA kernel info (via
+            # cuda-gdb) with the `--hang_dump_kernel` flag before the
+            # hang_detection behavior (restart/notify) is executed.
+            if _dlrover_context.hang_dump_kernel:
+                if self._dump_kernel_triggered:
+                    logger.info(
+                        "Skip broadcasting dump_kernel: already "
+                        "triggered in this hang episode."
+                    )
+                else:
+                    for _, node in _job_context.job_nodes_by_type(
+                        NodeType.WORKER
+                    ).items():
+                        if not node.is_released:
+                            actions.append(
+                                NodeAction(
+                                    node_id=node.id,
+                                    node_type=NodeType.WORKER,
+                                    action_type=(
+                                        DiagnosisActionType.DUMP_KERNEL
+                                    ),
+                                    instance=node.id,
+                                )
+                            )
+                    self._dump_kernel_triggered = True
 
             # add metric collection action for all worker node
             for _, node in _job_context.job_nodes_by_type(

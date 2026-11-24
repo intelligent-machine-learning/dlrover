@@ -43,6 +43,10 @@ class DiagnosisConstant(object):
     ACTION_EXPIRED_TIME_PERIOD_DEFAULT = 60 * 5
     MAX_ACTION_QUEUE_SIZE = 1000
 
+    # The maximal seconds a per-process cuda-gdb dump can run before the
+    # agent force-kills it (SIGKILL).
+    DUMP_KERNEL_TIMEOUT_SECS = 120
+
     MAX_DIAGNOSTICIAN_OBSERVE_TIME_LIMIT = 10
     MAX_DIAGNOSTICIAN_RESOLVE_TIME_LIMIT = 30
 
@@ -84,6 +88,7 @@ class DiagnosisActionType(object):
     RESTART_WORKER = "restart_worker"
     RELAUNCH_WORKER = "relaunch_worker"
     COLLECT_METRIC = "collect_metric"
+    DUMP_KERNEL = "dump_kernel"
 
     # job operation
     RESTART_JOB = "restart_job"

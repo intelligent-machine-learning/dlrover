@@ -1570,6 +1570,8 @@ class ElasticTrainingAgent(LocalElasticAgent):
                 self._worker_group.state = WorkerState.FAILED
             elif action_type == DiagnosisActionType.COLLECT_METRIC:
                 self._collect_metric()
+            elif action_type == DiagnosisActionType.DUMP_KERNEL:
+                self._dump_kernel()
         elif isinstance(action, EventAction):
             action.__class__ = EventAction
             labels = action.event_labels
@@ -1965,6 +1967,64 @@ class ElasticTrainingAgent(LocalElasticAgent):
             return None
 
         return metric_result
+
+    def _dump_kernel(self):
+        """
+        Dump the CUDA kernel info of the local training processes via
+        cuda-gdb. Triggered by the master after it hits a training hang
+        (--hang_dump_kernel). Runs the cuda-gdb dump against the
+        nproc_per_node training processes concurrently, prints the output
+        to stdout and blocks until all dumps finish (each cuda-gdb process
+        is force-killed with SIGKILL after DiagnosisConstant.
+        DUMP_KERNEL_TIMEOUT_SECS seconds).
+        """
+        start = time.time()
+        rank_to_pid = {}
+        try:
+            rank_to_pid = dict(self._pcontext.pids()) if self._pcontext else {}
+        except Exception as e:
+            logger.warning(f"Failed to get local training pids: {e}")
+        if not rank_to_pid:
+            logger.warning("Skip dumping CUDA kernels: no training process.")
+            return
+
+        timeout = DiagnosisConstant.DUMP_KERNEL_TIMEOUT_SECS
+        logger.info(
+            f"Dump CUDA kernels of {len(rank_to_pid)} training processes, "
+            f"timeout {timeout}s: {rank_to_pid}"
+        )
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=min(len(rank_to_pid), 8)) as pool:
+            futures = {
+                pool.submit(env_utils.dump_cuda_kernel_trace, pid, timeout): (
+                    local_rank,
+                    pid,
+                )
+                for local_rank, pid in rank_to_pid.items()
+            }
+            for future in as_completed(futures):
+                local_rank, pid = futures[future]
+                try:
+                    results[(local_rank, pid)] = future.result()
+                except Exception as e:
+                    results[(local_rank, pid)] = (
+                        False,
+                        f"unexpected error: {e}",
+                    )
+
+        # Keep each process' dump contiguous by printing after all dumps
+        # finish (the agent loop is blocked, which also guarantees the dump
+        # completes before any following restart action is processed).
+        for (local_rank, pid), (ok, output) in sorted(
+            results.items(), key=lambda item: item[0][0]
+        ):
+            prefix = f"[dump_kernel] local_rank={local_rank} pid={pid}"
+            print(f"{prefix}:\n{output}", flush=True)
+        logger.info(
+            f"Dumped CUDA kernels for {len(results)} training processes, "
+            f"cost {round((time.time() - start) * 1000, 2)} ms."
+        )
 
 
 def launch_agent(

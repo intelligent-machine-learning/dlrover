@@ -19,6 +19,7 @@ from dlrover.python.util.args_util import (
     parse_group_affinity,
     parse_tuple_list,
     pos_int,
+    str2bool,
 )
 from dlrover.python.util.common_util import print_args
 
@@ -89,6 +90,16 @@ def _build_master_args_parser():
         type=pos_int,
         help="The strategy of 'hang detection', "
         "0: log only; 1: notify; 2: with fault tolerance",
+    )
+    parser.add_argument(
+        "--hang_dump_kernel",
+        default=False,
+        type=str2bool,
+        help="When enabled, after the master hits a training hang it "
+        "broadcasts a 'dump_kernel' instruction to all dlrover-agents. "
+        "Each agent runs cuda-gdb on its nproc_per_node training "
+        "processes to dump CUDA kernel info, and the hang detection "
+        "behavior is executed after the dump finishes.",
     )
     parser.add_argument(
         "--hang_downtime",

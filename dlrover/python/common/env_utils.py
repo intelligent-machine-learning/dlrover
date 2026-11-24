@@ -235,3 +235,84 @@ def get_user_stack_pyspy(pid: int) -> Tuple[bool, str]:
         return False, "py-spy not installed"
     except Exception as e:
         return False, f"unexpected error: {e}"
+
+
+def dump_cuda_kernel_trace(pid: int, timeout: int = 120) -> Tuple[bool, str]:
+    """
+    Use cuda-gdb to dump the CUDA kernel info (devices, contexts, kernels,
+    threads and host stacks) of a training process. The dump is attached in
+    batch mode and detaches afterwards, so the target process resumes
+    running after the dump. On timeout, the cuda-gdb process is force-
+    killed with SIGKILL (kill -9); the partial output already produced is
+    kept, since the most valuable backtraces are printed before the hung
+    `info cuda` command stalls.
+
+    Args:
+        pid: process id of the training process
+        timeout: max seconds the cuda-gdb process can run (default 120s)
+
+    Returns:
+        Tuple[result, cuda-gdb output or error info]
+    """
+    cmd = [
+        "cuda-gdb",
+        "--quiet",
+        "--nx",
+        "--batch",
+        "-ex",
+        "set pagination off",
+        "-ex",
+        "set confirm off",
+        "-ex",
+        f"attach {pid}",
+        "-ex",
+        "info cuda devices",
+        "-ex",
+        "info cuda contexts",
+        "-ex",
+        "info cuda kernels",
+        "-ex",
+        "info cuda threads",
+        "-ex",
+        "thread apply all bt 12",
+        "-ex",
+        "detach",
+        "-ex",
+        "quit",
+    ]
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        return False, "cuda-gdb not installed"
+    except Exception as e:
+        return False, f"unexpected error: {e}"
+
+    try:
+        output, stderr = process.communicate(timeout=timeout)
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        # Force-kill (SIGKILL) the hung cuda-gdb and keep the partial
+        # output produced before the timeout.
+        process.kill()
+        output, stderr = process.communicate()
+        timed_out = True
+
+    if timed_out:
+        error = f"cuda-gdb timed out (pid={pid}, timeout={timeout})"
+        if stderr:
+            error = f"{error}\n{stderr}"
+        if output:
+            return False, f"{output}\n{error}"
+        return False, error
+    if process.returncode == 0:
+        return True, output
+    if output and stderr:
+        output = f"{output}\n{stderr}"
+    else:
+        output = output or stderr
+    return False, output if output else f"cuda-gdb rc={process.returncode}"

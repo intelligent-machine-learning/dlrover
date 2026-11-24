@@ -54,6 +54,7 @@ def run(args):
         args.task_process_timeout
     )
     _dlrover_context.hang_detection = args.hang_detection
+    _dlrover_context.hang_dump_kernel = args.hang_dump_kernel
     _dlrover_context.hang_downtime = args.hang_downtime
     if _dlrover_context.hang_downtime < DefaultValues.MIN_HANG_DOWNTIME:
         _dlrover_context.hang_downtime = DefaultValues.MIN_HANG_DOWNTIME
