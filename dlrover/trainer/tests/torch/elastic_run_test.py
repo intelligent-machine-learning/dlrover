@@ -205,6 +205,36 @@ class ElasticRunTest(unittest.TestCase):
         self.assertTrue(elastic._config.numa_affinity)
         self.assertFalse("dlrover_run_affinity.sh" in elastic._entrypoint)
 
+    def test_in_place_recovery_gate_is_disabled_by_default(self):
+        args = parse_args(["test.py"])
+        config, _, _ = _elastic_config_from_args(args)
+        self.assertFalse(config.enable_in_place_recovery)
+        self.assertFalse(config.to_json()["enable_in_place_recovery"])
+
+    def test_in_place_recovery_gate_can_be_enabled_by_cli(self):
+        args = parse_args(["--enable-in-place-recovery", "test.py"])
+        config, _, _ = _elastic_config_from_args(args)
+        self.assertTrue(config.enable_in_place_recovery)
+
+    def test_in_place_recovery_gate_can_be_enabled_by_dlrover_env(self):
+        with mock.patch.dict(
+            os.environ,
+            {NodeEnv.DLROVER_ENABLE_IN_PLACE_RECOVERY: "true"},
+            clear=False,
+        ):
+            args = parse_args(["test.py"])
+        config, _, _ = _elastic_config_from_args(args)
+        self.assertTrue(config.enable_in_place_recovery)
+
+    def test_in_place_recovery_gate_rejects_invalid_env(self):
+        with mock.patch.dict(
+            os.environ,
+            {NodeEnv.DLROVER_ENABLE_IN_PLACE_RECOVERY: "maybe"},
+            clear=False,
+        ):
+            with self.assertRaisesRegex(ValueError, "must be one of"):
+                parse_args(["test.py"])
+
     @patch(f"{MC_PATH}.get_elastic_run_config")
     def test_elastic_config_from_master_1(self, mock_func):
         mock_func.return_value = {
