@@ -299,6 +299,8 @@ class ElasticLaunchConfig(LaunchConfig):
         membind_policy: membind policy for numa affinity.
         ucp_device_type: device type for unified checkpoint.
         dynamic_failover_extension: extend implementation for dynamic failover.
+        enable_in_place_recovery: opt in to per-process recovery. The default
+            keeps the existing worker-group restart behavior.
     """
 
     precheck: int = 0
@@ -318,6 +320,7 @@ class ElasticLaunchConfig(LaunchConfig):
     membind_policy: str = "none"
     ucp_device_type: str = "cpu"
     dynamic_failover_extension: Optional[DynamicAgentFailoverExtension] = None
+    enable_in_place_recovery: bool = False
 
     def get_log_dir(self):
         return self.log_config.log_dir
@@ -400,6 +403,7 @@ class ElasticLaunchConfig(LaunchConfig):
             "rdzv_configs": json.dumps(self.rdzv_configs),
             "max_restarts": self.max_restarts,
             "accelerator": self.accelerator,
+            "enable_in_place_recovery": self.enable_in_place_recovery,
         }
 
 
@@ -2064,8 +2068,15 @@ def launch_agent(
         f"  failure_errors   : {config.failure_node_errors}\n"
         f"  numa_affinity    : {config.numa_affinity}\n"
         f"  accelerator      : {config.accelerator}\n"
+        f"  in_place_recovery: {config.enable_in_place_recovery}\n"
         f" ucp_device_type   : {config.ucp_device_type}\n"
     )
+
+    # Make the opt-in visible to child training processes. No environment
+    # variable is added for the default path, preserving compatibility with
+    # training jobs that do not implement in-place recovery.
+    if config.enable_in_place_recovery:
+        os.environ[NodeEnv.DLROVER_ENABLE_IN_PLACE_RECOVERY] = "1"
 
     _agent_evt.start(args=vars(config))
 

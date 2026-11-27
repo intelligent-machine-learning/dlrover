@@ -183,6 +183,20 @@ def parse_args(args):
         "process fails.",
     )
     parser.add_argument(
+        "--enable-in-place-recovery",
+        "--enable_in_place_recovery",
+        "--dlrover-enable-in-place-recovery",
+        "--dlrover_enable_in_place_recovery",
+        action=check_env,
+        default=False,
+        help=(
+            "Opt in to DLRover per-process in-place recovery. Training "
+            "processes must advertise a compatible recovery protocol; "
+            "without this option DLRover keeps the existing full worker "
+            "group restart behavior."
+        ),
+    )
+    parser.add_argument(
         "--accelerator",
         type=str,
         action=env,
@@ -240,7 +254,25 @@ def parse_args(args):
         default="cpu",
         help="The device where universal checkpoint take place.",
     )
-    return parser.parse_args(args)
+    parsed_args = parser.parse_args(args)
+    # ``check_env`` follows torchrun's environment naming rules. Also honor
+    # DLRover's explicit, namespaced variable so a launcher can enable the
+    # gate without modifying the command line.
+    recovery_env = os.environ.get(
+        NodeEnv.DLROVER_ENABLE_IN_PLACE_RECOVERY
+    )
+    if recovery_env is not None:
+        normalized = recovery_env.strip().lower()
+        if normalized in ("1", "true", "yes", "on"):
+            parsed_args.enable_in_place_recovery = True
+        elif normalized in ("0", "false", "no", "off"):
+            pass
+        else:
+            raise ValueError(
+                f"{NodeEnv.DLROVER_ENABLE_IN_PLACE_RECOVERY} must be one of "
+                "1/0, true/false, yes/no, or on/off"
+            )
+    return parsed_args
 
 
 class ElasticLaunch:
@@ -421,6 +453,9 @@ def _elastic_config_from_args(
     elastic_config.training_port = getattr(args, "training_port", 60000)
     elastic_config.save_at_breakpoint = getattr(
         args, "save_at_breakpoint", False
+    )
+    elastic_config.enable_in_place_recovery = getattr(
+        args, "enable_in_place_recovery", False
     )
 
     _merge_elastic_config_from_master(elastic_config)
